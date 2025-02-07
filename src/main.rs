@@ -6,7 +6,7 @@ use jankenstore::{
     action::{payload::ReadSrc, CreateOp, DelOp, PeerOp, ReadOp, UpdateOp},
     sqlite::{
         basics::FetchConfig,
-        schema::{self, fetch_schema_family, Schema},
+        schema::{self, fetch_schema_family, Schema, SchemaFamily},
         shift::val::{v_int, v_txt},
     },
 };
@@ -27,15 +27,15 @@ use uuid::Uuid;
 use std::{collections::HashMap, env, sync::Arc, time::SystemTime};
 
 const HTTP_LIST: [&str; 2] = ["http://localhost:3000", "http://localhost:5173"];
-const DB_PATH: &str = "datasource.db";
+const DEFAULT_DB_PATH: &str = "datasource.db";
 
-fn get_db_conn() -> anyhow::Result<Connection> {
-    let conn = Connection::open(DB_PATH)?;
+fn get_db_conn(path: &str) -> anyhow::Result<Connection> {
+    let conn = Connection::open(path)?;
     Ok(conn)
 }
 
-fn get_schema_family() -> anyhow::Result<schema::SchemaFamily> {
-    let conn = get_db_conn()?;
+fn get_schema_family(db_path: &str) -> anyhow::Result<schema::SchemaFamily> {
+    let conn = get_db_conn(db_path)?;
     let schema_family = fetch_schema_family(&conn, &[], "", "")?;
     Ok(schema_family)
 }
@@ -49,20 +49,31 @@ pub struct Pagination {
     pub order_by: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct HandlerState {
+    pub schema_family: SchemaFamily,
+    pub db_path: String,
+}
+
 #[tokio::main]
 async fn main() {
     // initialize tracing
     tracing_subscriber::fmt::init();
 
-    env::var("DB_PATH").unwrap_or_else(|_| DB_PATH.to_string());
+    let db_path = env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
 
-    let schema_family_result = get_schema_family();
+    println!("DB_PATH: {}", db_path);
+
+    let schema_family_result = get_schema_family(&db_path);
     if let Err(e) = schema_family_result {
         eprintln!("Error: {}", e);
         return;
     }
 
-    let schema_family = Arc::new(schema_family_result.unwrap());
+    let handler_state = Arc::new(HandlerState {
+        schema_family: schema_family_result.unwrap(),
+        db_path,
+    });
 
     // build our application with a route
     let app = Router::new()
@@ -76,7 +87,7 @@ async fn main() {
             "/try_to_learn/{song_id}",
             post(learning::handle_try_to_learn),
         )
-        .with_state(schema_family)
+        .with_state(handler_state)
         .layer(
             CorsLayer::new()
                 .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
@@ -127,16 +138,21 @@ fn set_timestamped_input(
 }
 
 async fn handle_schema(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handle_state): State<Arc<HandlerState>>,
 ) -> Result<Json<Value>, err::AppError> {
+    let HandlerState { schema_family, .. } = &*handle_state;
     Ok(Json(schema_family.json()?))
 }
 
 async fn handle_store_read(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<HandlerState>>,
     Query(query): Query<Pagination>,
     body: String,
 ) -> Result<Json<Vec<Value>>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = &*handler_state;
     let body = get_body(&body)?;
     let Pagination {
         limit,
@@ -144,7 +160,7 @@ async fn handle_store_read(
         order_by,
     } = query;
 
-    let conn = get_db_conn()?;
+    let conn = get_db_conn(db_path)?;
     let op: ReadOp = from_value(body)?;
     let where_config = ("status=0", vec![]);
     let fetch_cfg = FetchConfig {
@@ -154,19 +170,23 @@ async fn handle_store_read(
         where_config: Some((where_config.0, &where_config.1)),
         ..Default::default()
     };
-    let results = op.run(&conn, &schema_family, Some(fetch_cfg))?;
+    let results = op.run(&conn, schema_family, Some(fetch_cfg))?;
     Ok(Json(results))
 }
 
 async fn handle_store_create(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<HandlerState>>,
     body: String,
 ) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = &*handler_state;
     let body = get_body(&body)?;
-    let conn = get_db_conn()?;
+    let conn = get_db_conn(db_path)?;
     let create_op: CreateOp = from_value(body)?;
     let new_id = Uuid::new_v4().to_string();
-    create_op.run_map(&conn, &schema_family, |input, src| {
+    create_op.run_map(&conn, schema_family, |input, src| {
         let schema = schema_family.try_get_schema(src)?;
         let pk_type = schema
             .types
@@ -199,18 +219,22 @@ async fn handle_store_create(
             "keys": [new_id]
         }
     }))?;
-    let results = read.run(&conn, &schema_family, None)?;
+    let results = read.run(&conn, schema_family, None)?;
     Ok(Json(json!(results[0])))
 }
 
 async fn handle_store_update(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<HandlerState>>,
     body: String,
 ) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = &*handler_state;
     let body = get_body(&body)?;
-    let conn = get_db_conn()?;
+    let conn = get_db_conn(db_path)?;
     let op: UpdateOp = from_value(body)?;
-    op.run_map(&conn, &schema_family, |input, src| {
+    op.run_map(&conn, schema_family, |input, src| {
         let schema = schema_family.try_get_schema(src)?;
         let mut input = input.clone();
         set_timestamped_input(schema, &mut input, &["updated_at"])?;
@@ -220,23 +244,31 @@ async fn handle_store_update(
 }
 
 async fn handle_store_delete(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<HandlerState>>,
     body: String,
 ) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = &*handler_state;
     let body = get_body(&body)?;
-    let conn = get_db_conn()?;
+    let conn = get_db_conn(db_path)?;
     let op: DelOp = from_value(body)?;
-    op.run(&conn, &schema_family, None)?;
+    op.run(&conn, schema_family, None)?;
     Ok(Json(json!({})))
 }
 
 async fn handle_store_peer(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<HandlerState>>,
     body: String,
 ) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = &*handler_state;
     let body = get_body(&body)?;
-    let conn = get_db_conn()?;
+    let conn = get_db_conn(db_path)?;
     let op: PeerOp = from_value(body)?;
-    op.run(&conn, &schema_family)?;
+    op.run(&conn, schema_family)?;
     Ok(Json(json!({})))
 }

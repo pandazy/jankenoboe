@@ -1,8 +1,8 @@
-use crate::{easing, err, get_db_conn, get_timestamp};
+use crate::{easing, err, get_db_conn, get_timestamp, HandlerState};
 
 use jankenstore::{
     action::{payload::ParsableOp, CreateOp, ReadOp},
-    sqlite::{basics::CountConfig, read::count, schema, shift::val::v_txt},
+    sqlite::{basics::CountConfig, read::count, shift::val::v_txt},
 };
 
 use axum::{
@@ -15,16 +15,21 @@ use uuid::Uuid;
 
 use std::sync::Arc;
 
+/// customized handlers
 pub async fn handle_try_to_learn(
-    State(schema_family): State<Arc<schema::SchemaFamily>>,
+    State(handler_state): State<Arc<crate::HandlerState>>,
     Path(song_id): Path<String>,
 ) -> Result<Json<Value>, err::AppError> {
-    let conn = get_db_conn()?;
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = handler_state.as_ref();
+    let conn = get_db_conn(db_path)?;
 
     let where_config = ("song_id=? and graduated=0", vec![v_txt(&song_id)]);
     let learning_count = count(
         &conn,
-        &schema_family,
+        schema_family,
         "learning",
         Some(CountConfig {
             where_config: Some((where_config.0, &where_config.1)),
@@ -42,7 +47,7 @@ pub async fn handle_try_to_learn(
     let wehere_config = ("id=?", vec![v_txt(&song_id)]);
     let existing_song_count = count(
         &conn,
-        &schema_family,
+        schema_family,
         "song",
         Some(CountConfig {
             where_config: Some((wehere_config.0, &wehere_config.1)),
@@ -75,7 +80,7 @@ pub async fn handle_try_to_learn(
         ]
     });
     let create_op: CreateOp = from_value(create_op_cmd)?;
-    create_op.run(&conn, &schema_family)?;
+    create_op.run(&conn, schema_family)?;
     let read_op = ReadOp::from_str(&format!(
         r#"{{
           "ByPk": {{
@@ -85,7 +90,7 @@ pub async fn handle_try_to_learn(
       }}"#,
         new_id
     ))?;
-    let results = read_op.run(&conn, &schema_family, None)?;
+    let results = read_op.run(&conn, schema_family, None)?;
 
     Ok(Json(json!(results[0])))
 }
