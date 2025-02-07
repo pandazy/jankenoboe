@@ -27,7 +27,7 @@ fn default_easing(n: u8) -> u16 {
 /// # new_easing_map
 /// ```
 /// use std::collections::HashMap;
-/// use anisonstud::amq::learning::easing::new_easing_map;
+/// use jankenoboe::easing::new_easing_map;
 ///
 /// let map = new_easing_map(20);
 /// assert_eq!(map.get(&0), Some(&1));

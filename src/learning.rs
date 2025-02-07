@@ -1,4 +1,8 @@
-use crate::{easing, err, get_db_conn, get_timestamp, HandlerState};
+use crate::{
+    easing, err,
+    utils::{get_db_conn, get_timestamp},
+    HandlerState,
+};
 
 use jankenstore::{
     action::{payload::ParsableOp, CreateOp, ReadOp},
