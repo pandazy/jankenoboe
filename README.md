@@ -1,2 +1,3 @@
 # jankenoboe
-Web service for memorizing things
+
+Web backend services for memorizing Anime songs
