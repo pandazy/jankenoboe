@@ -5,7 +5,10 @@ use crate::{
 };
 
 use jankenstore::{
-    action::{payload::ReadSrc, CreateOp, DelOp, PeerOp, ReadOp, UpdateOp},
+    action::{
+        payload::{ParsableOp, ReadSrc},
+        CreateOp, DelOp, PeerOp, ReadOp, UpdateOp,
+    },
     sqlite::{basics::FetchConfig, shift::val::v_txt},
 };
 
@@ -24,10 +27,11 @@ use uuid::Uuid;
 ///
 /// The pagination configuration for fetching records
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Pagination {
+pub struct QueryRequest {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
     pub order_by: Option<String>,
+    pub op: Option<String>,
 }
 
 pub async fn handle_schema(
@@ -39,28 +43,33 @@ pub async fn handle_schema(
 
 pub async fn handle_store_read(
     State(handler_state): State<Arc<HandlerState>>,
-    Query(query): Query<Pagination>,
-    body: String,
+    Query(query): Query<QueryRequest>,
 ) -> Result<Json<Vec<Value>>, err::AppError> {
     let HandlerState {
         schema_family,
         db_path,
     } = &*handler_state;
-    let body = get_body(&body)?;
-    let Pagination {
+    let QueryRequest {
         limit,
         offset,
         order_by,
+        op,
     } = query;
 
+    let op = op.unwrap_or_else(|| "".to_string());
+
     let conn = get_db_conn(db_path)?;
-    let op: ReadOp = from_value(body)?;
-    let where_config = ("status=0", vec![]);
+    let op = ReadOp::from_str(&op)?;
+    let schema = schema_family.try_get_schema(op.src())?;
     let fetch_cfg = FetchConfig {
         limit,
         offset,
         order_by: order_by.as_deref(),
-        where_config: Some((where_config.0, &where_config.1)),
+        where_config: if schema.types.contains_key("status") {
+            Some(("status=0", &[]))
+        } else {
+            None
+        },
         ..Default::default()
     };
     let results = op.run(&conn, schema_family, Some(fetch_cfg))?;

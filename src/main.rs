@@ -21,7 +21,12 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use std::{env, sync::Arc};
 
-const HTTP_LIST: [&str; 2] = ["http://localhost:3000", "http://localhost:5173"];
+const HTTP_LIST: [&str; 3] = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+];
+
 const DEFAULT_DB_PATH: &str = "datasource.db";
 
 #[derive(Debug)]
