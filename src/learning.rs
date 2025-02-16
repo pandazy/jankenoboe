@@ -94,7 +94,10 @@ pub async fn handle_try_to_learn(
       }}"#,
         new_id
     ))?;
-    let results = read_op.run(&conn, schema_family, None)?;
+    let (records, total) = read_op.run(&conn, schema_family, None)?;
 
-    Ok(Json(json!(results[0])))
+    Ok(Json(json!({
+        "records": records,
+        "total": total
+    })))
 }

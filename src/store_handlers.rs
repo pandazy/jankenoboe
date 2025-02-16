@@ -44,7 +44,7 @@ pub async fn handle_schema(
 pub async fn handle_store_read(
     State(handler_state): State<Arc<HandlerState>>,
     Query(query): Query<QueryRequest>,
-) -> Result<Json<Vec<Value>>, err::AppError> {
+) -> Result<Json<Value>, err::AppError> {
     let HandlerState {
         schema_family,
         db_path,
@@ -72,8 +72,11 @@ pub async fn handle_store_read(
         },
         ..Default::default()
     };
-    let results = op.run(&conn, schema_family, Some(fetch_cfg))?;
-    Ok(Json(results))
+    let (results, count) = op.run(&conn, schema_family, Some(fetch_cfg))?;
+    Ok(Json(json!({
+        "records": results,
+        "total": count
+    })))
 }
 
 pub async fn handle_store_create(
@@ -121,7 +124,7 @@ pub async fn handle_store_create(
             "keys": [new_id]
         }
     }))?;
-    let results = read.run(&conn, schema_family, None)?;
+    let (results, _) = read.run(&conn, schema_family, None)?;
     Ok(Json(json!(results[0])))
 }
 
