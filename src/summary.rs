@@ -1,4 +1,4 @@
-use crate::{err, utils::get_db_conn, HandlerState};
+use crate::{err, learning::DUE_CONDITION, utils::get_db_conn, HandlerState};
 
 use axum::{extract::State, Json};
 use jankenstore::sqlite::{basics::CountConfig, read::count};
@@ -45,11 +45,22 @@ pub async fn handle_summary(
         }),
     )?;
 
+    let total_due_learning_songs = count(
+        &conn,
+        schema_family,
+        "learning",
+        Some(CountConfig {
+            distinct_field: Some("song_id"),
+            where_config: Some((DUE_CONDITION, &[])),
+        }),
+    )?;
+
     Ok(Json(json!({
       "totalShows": total_shows,
       "totalSongs": total_songs,
       "totalArtists": total_artists,
       "totalLearningSongs": total_learning_songs,
       "totalGraduatedSongs": total_graduated_songs,
+      "totalDueLearningSongs": total_due_learning_songs,
     })))
 }

@@ -105,6 +105,18 @@ pub async fn handle_try_to_learn(
     })))
 }
 
+pub const DUE_CONDITION: &str = r#"
+graduated=0 and (
+    (last_level_up_at > 0 and level=0 and cast(strftime('%s', 'now') as INTEGER) >= (last_level_up_at + 300))
+    or
+    (last_level_up_at = 0 and level=0 and cast(strftime('%s', 'now') as INTEGER) >= (updated_at + 300))
+    or
+    (level>0 and
+       (json_extract(level_up_path, '$['||level||']')*24*60*60 + last_level_up_at) <= cast(strftime('%s', 'now') as INTEGER)
+    )
+)
+"#;
+
 pub async fn handle_due_learning(
     State(handler_state): State<Arc<crate::HandlerState>>,
     Query(query_params): Query<QueryRequest>,
@@ -116,15 +128,12 @@ pub async fn handle_due_learning(
     } = handler_state.as_ref();
     let conn = get_db_conn(db_path)?;
 
-    let level1_due = "level=0 and cast(strftime('%s', 'now') as INTEGER) >= (updated_at + 300)";
-    let level2_due = "(json_extract(level_up_path, '$['||level||']')*24*60*60  + last_level_up_at) <= cast(strftime('%s', 'now') as INTEGER)";
-    let where_cond = format!("graduated=0 and (({}) or ({})) ", level1_due, level2_due);
     let (records, total) = all(
         &conn,
         schema_family,
         "learning",
         Some(FetchConfig {
-            where_config: Some((where_cond.as_str(), &[])),
+            where_config: Some((DUE_CONDITION, &[])),
             order_by: Some("level, last_level_up_at"),
             limit,
             offset,
@@ -171,6 +180,10 @@ pub async fn handle_level_up(
     update_op.run(&conn, schema_family)?;
 
     Ok(Json(json!({
+        "learning": {
+            "id": learning_id,
+            "level": level,
+        },
         "message": "Level up successfully"
     })))
 }
