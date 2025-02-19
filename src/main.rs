@@ -2,6 +2,7 @@ mod easing;
 mod err;
 mod learning;
 mod store_handlers;
+mod summary;
 mod utils;
 
 use store_handlers::{
@@ -67,10 +68,22 @@ async fn main() {
             "/try_to_learn/{song_id}",
             post(learning::handle_try_to_learn),
         )
+        .route("/due_learning", get(learning::handle_due_learning))
+        .route(
+            "/level_to/{learning_id}/{level}",
+            patch(learning::handle_level_up),
+        )
+        .route("/summary", get(summary::handle_summary))
         .with_state(handler_state)
         .layer(
             CorsLayer::new()
-                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::DELETE,
+                    Method::PATCH,
+                ])
                 .allow_origin(AllowOrigin::list(
                     HTTP_LIST
                         .iter()
