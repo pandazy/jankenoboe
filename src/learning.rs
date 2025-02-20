@@ -227,3 +227,34 @@ pub async fn handle_all_learning(
         "total": total
     })))
 }
+
+pub async fn handle_graduate(
+    State(handler_state): State<Arc<crate::HandlerState>>,
+    Path(learning_id): Path<String>,
+) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = handler_state.as_ref();
+    let conn = get_db_conn(db_path)?;
+
+    let update_op_cmd = json!({
+        "Update": [
+            {
+                "src": "learning",
+                "keys": [learning_id],
+            },
+            {
+                "graduated": 1,
+                "updated_at": get_timestamp()
+            }
+        ]
+    });
+    let update_op: UpdateOp = from_value(update_op_cmd)?;
+    update_op.run(&conn, schema_family)?;
+
+    Ok(Json(json!({
+        "id": learning_id,
+        "message": "Graduated successfully"
+    })))
+}

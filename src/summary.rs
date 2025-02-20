@@ -41,7 +41,10 @@ pub async fn handle_summary(
         "learning",
         Some(CountConfig {
             distinct_field: Some("song_id"),
-            where_config: Some(("graduated=1", &[])),
+            where_config: Some((
+                "graduated=1 and song_id not in (select song_id from learning where graduated=0)",
+                &[],
+            )),
         }),
     )?;
 
