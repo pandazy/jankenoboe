@@ -73,6 +73,11 @@ async fn main() {
             "/level_to/{learning_id}/{level}",
             patch(learning::handle_level_up),
         )
+        .route(
+            "/total_due_learning",
+            get(summary::handle_total_due_learning),
+        )
+        .route("/all_learning", get(learning::handle_all_learning))
         .route("/summary", get(summary::handle_summary))
         .with_state(handler_state)
         .layer(

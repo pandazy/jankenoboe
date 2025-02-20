@@ -117,6 +117,41 @@ graduated=0 and (
 )
 "#;
 
+pub async fn handle_level_up(
+    State(handler_state): State<Arc<crate::HandlerState>>,
+    Path((learning_id, level)): Path<(String, u8)>,
+) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = handler_state.as_ref();
+    let conn = get_db_conn(db_path)?;
+
+    let update_op_cmd = json!({
+        "Update": [
+            {
+                "src": "learning",
+                "keys": [learning_id],
+            },
+            {
+                "level": level,
+                "last_level_up_at": get_timestamp(),
+                "updated_at": get_timestamp()
+            }
+        ]
+    });
+    let update_op: UpdateOp = from_value(update_op_cmd)?;
+    update_op.run(&conn, schema_family)?;
+
+    Ok(Json(json!({
+        "learning": {
+            "id": learning_id,
+            "level": level,
+        },
+        "message": "Level up successfully"
+    })))
+}
+
 pub async fn handle_due_learning(
     State(handler_state): State<Arc<crate::HandlerState>>,
     Query(query_params): Query<QueryRequest>,
@@ -153,37 +188,42 @@ pub async fn handle_due_learning(
     })))
 }
 
-pub async fn handle_level_up(
+pub async fn handle_all_learning(
     State(handler_state): State<Arc<crate::HandlerState>>,
-    Path((learning_id, level)): Path<(String, u8)>,
+    Query(query_params): Query<QueryRequest>,
 ) -> Result<Json<Value>, err::AppError> {
     let HandlerState {
         schema_family,
         db_path,
     } = handler_state.as_ref();
     let conn = get_db_conn(db_path)?;
-
-    let update_op_cmd = json!({
-        "Update": [
-            {
-                "src": "learning",
-                "keys": [learning_id],
-            },
-            {
-                "level": level,
-                "last_level_up_at": get_timestamp(),
-                "updated_at": get_timestamp()
-            }
-        ]
-    });
-    let update_op: UpdateOp = from_value(update_op_cmd)?;
-    update_op.run(&conn, schema_family)?;
+    let QueryRequest {
+        limit,
+        offset,
+        order_by,
+        ..
+    } = query_params;
+    let (records, total) = all(
+        &conn,
+        schema_family,
+        "learning",
+        Some(FetchConfig {
+            where_config: Some(("graduated=0", &[])),
+            limit,
+            offset,
+            order_by: order_by.as_deref(),
+            ..Default::default()
+        }),
+        false,
+    )?;
+    let mut json_records: Vec<Value> = Vec::new();
+    for record in records {
+        let json_record = val_to_json(&record)?;
+        json_records.push(json_record);
+    }
 
     Ok(Json(json!({
-        "learning": {
-            "id": learning_id,
-            "level": level,
-        },
-        "message": "Level up successfully"
+        "records": json_records,
+        "total": total
     })))
 }

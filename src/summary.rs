@@ -45,6 +45,24 @@ pub async fn handle_summary(
         }),
     )?;
 
+    Ok(Json(json!({
+      "totalShows": total_shows,
+      "totalSongs": total_songs,
+      "totalArtists": total_artists,
+      "totalLearningSongs": total_learning_songs,
+      "totalGraduatedSongs": total_graduated_songs,
+    })))
+}
+
+pub async fn handle_total_due_learning(
+    State(handler_state): State<Arc<crate::HandlerState>>,
+) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = handler_state.as_ref();
+    let conn = get_db_conn(db_path)?;
+
     let total_due_learning_songs = count(
         &conn,
         schema_family,
@@ -56,11 +74,6 @@ pub async fn handle_summary(
     )?;
 
     Ok(Json(json!({
-      "totalShows": total_shows,
-      "totalSongs": total_songs,
-      "totalArtists": total_artists,
-      "totalLearningSongs": total_learning_songs,
-      "totalGraduatedSongs": total_graduated_songs,
-      "totalDueLearningSongs": total_due_learning_songs,
+        "total": total_due_learning_songs,
     })))
 }
