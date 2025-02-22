@@ -1,5 +1,6 @@
 mod easing;
 mod err;
+mod import_check;
 mod learning;
 mod store_handlers;
 mod summary;
@@ -80,6 +81,8 @@ async fn main() {
         .route("/all_learning", get(learning::handle_all_learning))
         .route("/graduate/{learning_id}", patch(learning::handle_graduate))
         .route("/summary", get(summary::handle_summary))
+        .route("/import_check", post(import_check::handle_import_check))
+        .route("/play_history", post(import_check::handle_play_history))
         .with_state(handler_state)
         .layer(
             CorsLayer::new()
