@@ -23,11 +23,14 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use std::{env, sync::Arc};
 
-const HTTP_LIST: [&str; 3] = [
+const HTTP_LIST: [&str; 4] = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost:5173",
     "http://localhost:5174",
 ];
+
+const DEFAULT_PORT: u16 = 3000;
 
 const DEFAULT_DB_PATH: &str = "datasource.db";
 
@@ -43,8 +46,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let db_path = env::var("DB_PATH").unwrap_or_else(|_| DEFAULT_DB_PATH.to_string());
-
+    let port = env::var("PORT").unwrap_or_else(|_| DEFAULT_PORT.to_string());
     println!("DB_PATH: {}", db_path);
+    println!("PORT: {}", port);
 
     let schema_family_result = get_schema_family(&db_path);
     if let Err(e) = schema_family_result {
@@ -103,6 +107,8 @@ async fn main() {
         );
 
     // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
