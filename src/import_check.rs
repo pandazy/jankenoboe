@@ -89,15 +89,24 @@ pub async fn handle_import_check(
     } = handler_state.as_ref();
     let conn = get_db_conn(db_path)?;
 
-    let import_data = body.as_array().ok_or(anyhow::anyhow!(err::http_err_msg(
-        "import_data must be an array",
-        StatusCode::BAD_REQUEST,
-    )))?;
+    let import_songs = body["songs"]
+        .as_array()
+        .ok_or(anyhow::anyhow!(err::http_err_msg(
+            "import_data must be an array",
+            StatusCode::BAD_REQUEST,
+        )))?;
+    let dup_artist_map =
+        body["dupArtistMap"]
+            .as_object()
+            .ok_or(anyhow::anyhow!(err::http_err_msg(
+                "dupArtistMap must be an object",
+                StatusCode::BAD_REQUEST,
+            )))?;
 
     let mut straight_records = vec![];
     let mut to_be_decided_records = vec![];
 
-    for record in import_data {
+    for record in import_songs {
         let song_info = record["songInfo"].clone();
         let new_video_url = record["videoUrl"].as_str().unwrap_or("");
         let show_name = song_info["animeNames"]["english"]
@@ -153,16 +162,33 @@ pub async fn handle_import_check(
 
         let (artists, count) = get_artist_exist_query(&conn, schema_family, artist_name)?;
         let artist_json = if count != 1 {
-            is_straight = false;
-            let mut existing_artists = vec![];
-            for artist in artists {
-                existing_artists.push(val_to_json(&artist)?);
+            if dup_artist_map.contains_key(artist_name) {
+                is_straight = true;
+                let dup_artist_id = dup_artist_map[artist_name].as_str().unwrap_or("");
+                let artist = artists.iter().find(|artist| match &artist["id"] {
+                    types::Value::Text(id) => id == dup_artist_id,
+                    _ => false,
+                });
+                val_to_json(artist.ok_or(anyhow::anyhow!(err::http_err_msg(
+                        format!(
+                            "failed to get artist: {:?} with dup_artist_id: {}",
+                            record["songInfo"], dup_artist_id
+                        )
+                        .as_str(),
+                        StatusCode::BAD_REQUEST,
+                    )))?)?
+            } else {
+                is_straight = false;
+                let mut existing_artists = vec![];
+                for artist in artists {
+                    existing_artists.push(val_to_json(&artist)?);
+                }
+                json!({
+                    "name": artist_name,
+                    "$tbd_options": existing_artists,
+                    "$tbd": true,
+                })
             }
-            json!({
-                "name": artist_name,
-                "$tbd_options": existing_artists,
-                "$tbd": true,
-            })
         } else {
             val_to_json(&artists[0])?
         };
