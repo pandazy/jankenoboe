@@ -119,6 +119,13 @@ pub async fn handle_import_check(
                 .as_str(),
                 StatusCode::BAD_REQUEST,
             )))?;
+        let show_name_romaji =
+            song_info["animeNames"]["romaji"]
+                .as_str()
+                .ok_or(anyhow::anyhow!(err::http_err_msg(
+                    format!("failed to get show's romaji name: {:?}", record["songInfo"]).as_str(),
+                    StatusCode::BAD_REQUEST,
+                )))?;
         let vintage = song_info["vintage"]
             .as_str()
             .ok_or(anyhow::anyhow!(err::http_err_msg(
@@ -151,6 +158,7 @@ pub async fn handle_import_check(
             }
             let show_js = json!({
                 "name": show_name,
+                "name_romaji": show_name_romaji,
                 "vintage": vintage,
                 "$tbd_options": existing_shows,
                 "$tbd": true,
