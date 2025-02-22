@@ -238,8 +238,8 @@ pub async fn handle_import_check(
     }
 
     Ok(Json(json!({
-        "straightRecords": straight_records,
-        "toBeDecidedRecords": to_be_decided_records,
+        "certainRecords": straight_records,
+        "uncertainRecords": to_be_decided_records,
     })))
 }
 
