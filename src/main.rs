@@ -80,13 +80,14 @@ async fn main() {
         )
         .route(
             "/total_due_learning",
-            get(summary::handle_total_due_learning),
+            get(learning::handle_total_due_learning),
         )
         .route("/all_learning", get(learning::handle_all_learning))
         .route("/graduate/{learning_id}", patch(learning::handle_graduate))
         .route("/summary", get(summary::handle_summary))
         .route("/import_check", post(import_check::handle_import_check))
         .route("/play_history", post(import_check::handle_play_history))
+        .route("/media_urls/{song_ids}", get(summary::handle_media_urls))
         .with_state(handler_state)
         .layer(
             CorsLayer::new()

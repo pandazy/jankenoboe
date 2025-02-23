@@ -258,3 +258,27 @@ pub async fn handle_graduate(
         "message": "Graduated successfully"
     })))
 }
+
+pub async fn handle_total_due_learning(
+    State(handler_state): State<Arc<crate::HandlerState>>,
+) -> Result<Json<Value>, err::AppError> {
+    let HandlerState {
+        schema_family,
+        db_path,
+    } = handler_state.as_ref();
+    let conn = get_db_conn(db_path)?;
+
+    let total_due_learning_songs = count(
+        &conn,
+        schema_family,
+        "learning",
+        Some(CountConfig {
+            distinct_field: Some("song_id"),
+            where_config: Some((DUE_CONDITION, &[])),
+        }),
+    )?;
+
+    Ok(Json(json!({
+        "total": total_due_learning_songs,
+    })))
+}
