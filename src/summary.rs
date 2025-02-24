@@ -90,7 +90,7 @@ pub async fn handle_media_urls(
         Some(FetchConfig {
             where_config: Some((
                 format!(
-                    "{} and (media_url is not null or media_url != '' or media_url != \"''\")",
+                    "{} and (media_url is not null and media_url != '')",
                     where_cond.0
                 )
                 .as_str(),
