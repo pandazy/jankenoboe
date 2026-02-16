@@ -4,7 +4,7 @@ An anime song learning system that tracks songs from [animemusicquiz.com](https:
 
 **Two ways to use it:**
 - **With an AI agent:** Non-technical users can interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that run `sqlite3` queries directly — no server needed.
-- **With the HTTP API:** A Rust service provides REST endpoints for programmatic access and efficiency.
+- **With the HTTP API** *(under construction)*: A Rust service provides REST endpoints for programmatic access and efficiency.
 
 ## Prerequisites
 
@@ -13,7 +13,6 @@ An anime song learning system that tracks songs from [animemusicquiz.com](https:
   - Ubuntu/Debian: `sudo apt install sqlite3`
   - Windows: download from [sqlite.org](https://www.sqlite.org/download.html)
 - **Rust 1.70+** — only needed for the HTTP API mode
-- **JankenSQLHub** — cloned at `../jankensqlhub` (only for HTTP API mode)
 
 ## Setup
 
@@ -28,7 +27,13 @@ sqlite3 ~/db/datasource.db < docs/init-db.sql
 
 This creates all tables, indexes, and constraints. See [docs/init-db.sql](docs/init-db.sql) for the full schema.
 
-### 2. Start using it
+### 2. Import your song data
+
+1. Play a round on [animemusicquiz.com](https://animemusicquiz.com)
+2. After the game, export your song list as JSON (see [sample export](docs/amq_song_export-sample.json) for the format)
+3. Give the exported JSON file to your AI agent and ask it to import the songs — the agent will resolve artists, shows, and songs, creating records as needed (see [Import Workflow](docs/import.md) for details)
+
+### 3. Start using it
 
 **Agent mode (no server needed):** Point your AI agent (e.g., Claude) to the `skills/` directory and tell it the path to your database file. The agent will run `sqlite3` queries directly.
 
@@ -41,7 +46,7 @@ cargo run
 
 The service starts on `http://localhost:3000`.
 
-## API
+## API *(under construction)*
 
 The API uses **generic CRUD endpoints** powered by [JankenSQLHub](https://github.com/pandazy/jankensqlhub) to minimize endpoint count while maintaining security through `enum`/`enumif` parameter validation.
 
