@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the workflow for importing song data from [animemusicquiz.com](https://animemusicquiz.com) exports into the Janken database.
+This document describes the workflow for importing song data from [animemusicquiz.com](https://animemusicquiz.com) exports into the Jankenoboe database.
 
 ## Export Format
 

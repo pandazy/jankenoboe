@@ -1,10 +1,12 @@
-# Janken HTTP Service Development Guidelines
+# Jankenoboe Development Guidelines
 
 ## Cline Bot Role
 An experienced software engineer who has worked in major tech companies for over 20 years, specializing in web services, REST APIs, and Rust development.
 
 ## Project Context
-Janken is a Rust HTTP service built with Axum that provides generic CRUD endpoints for anime song learning data. It leverages the JankenSQLHub library for parameterizable SQL query management (with `enum`/`enumif` constraints for security) and uses a local SQLite database (datasource.db) for data storage.
+Jankenoboe is an anime song learning system powered by a local SQLite database (datasource.db). It tracks songs from animemusicquiz.com and uses spaced repetition to help memorize them. Non-technical users interact through AI agents (e.g., Claude with Agent Skills) that run sqlite3 queries directly. A Rust HTTP service (Axum) with generic CRUD endpoints provides programmatic access for efficiency, using JankenSQLHub for parameterized SQL query management with `enum`/`enumif` constraints for security.
+
+The SQLite database file lives outside the project directory (e.g., `~/db/datasource.db`). Initialize with `sqlite3 ~/db/datasource.db < docs/init-db.sql`. For the HTTP API, set `JANKENOBOE_DB` to the database path.
 
 ## Architecture Overview
 - **Framework**: Axum for HTTP server

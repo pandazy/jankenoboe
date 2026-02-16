@@ -1,10 +1,41 @@
-# Janken - Anime Music Quiz Learning API
+# Jankenoboe - Anime Song Learning System
 
-A Rust HTTP service that provides API support for learning anime songs to improve performance in anime music quiz games like [animemusicquiz.com](https://animemusicquiz.com).
+An anime song learning system that tracks songs from [animemusicquiz.com](https://animemusicquiz.com) and uses spaced repetition to help memorize them. The name combines "janken" (the creator's alias on AMQ) with "oboe" (覚え, memory/memorization in Japanese).
 
-## Quick Start
+**Two ways to use it:**
+- **With an AI agent:** Non-technical users can interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that run `sqlite3` queries directly — no server needed.
+- **With the HTTP API:** A Rust service provides REST endpoints for programmatic access and efficiency.
+
+## Prerequisites
+
+- **SQLite 3** — required for both access modes
+  - macOS: `brew install sqlite` (or pre-installed)
+  - Ubuntu/Debian: `sudo apt install sqlite3`
+  - Windows: download from [sqlite.org](https://www.sqlite.org/download.html)
+- **Rust 1.70+** — only needed for the HTTP API mode
+- **JankenSQLHub** — cloned at `../jankensqlhub` (only for HTTP API mode)
+
+## Setup
+
+### 1. Create the database
+
+The database file lives **outside** the project directory (e.g., `~/db/datasource.db`). Create it from the schema:
 
 ```bash
+mkdir -p ~/db
+sqlite3 ~/db/datasource.db < docs/init-db.sql
+```
+
+This creates all tables, indexes, and constraints. See [docs/init-db.sql](docs/init-db.sql) for the full schema.
+
+### 2. Start using it
+
+**Agent mode (no server needed):** Point your AI agent (e.g., Claude) to the `skills/` directory and tell it the path to your database file. The agent will run `sqlite3` queries directly.
+
+**HTTP API mode** *(under construction)*:
+
+```bash
+export JANKENOBOE_DB=~/db/datasource.db
 cargo run
 ```
 
@@ -51,8 +82,23 @@ curl -X PATCH "http://localhost:3000/learning/bb9d3b38-9c28-4d11-aecd-6d2650724b
   -d '{"level": 8}'
 ```
 
+## Agent Skills (Claude)
+
+The `skills/` directory contains [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for interacting with the Jankenoboe database. Each skill asks for the SQLite database path upfront and supports two access modes:
+
+- **HTTP mode**: Uses the REST API when the local server is running (`localhost:3000`)
+- **SQL mode**: Falls back to direct `sqlite3` CLI queries when the server is unavailable
+
+| Skill | Description |
+|-------|-------------|
+| [querying-jankenoboe](skills/querying-jankenoboe/SKILL.md) | Search and read artists, shows, songs, learning records, due reviews, duplicates |
+| [learning-with-jankenoboe](skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: add songs, level up/down, graduate, check due reviews |
+| [maintaining-jankenoboe-data](skills/maintaining-jankenoboe-data/SKILL.md) | CRUD operations: create/update/delete records, bulk reassign, merge duplicates |
+| [reviewing-due-songs](skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
+
 ## Documentation
 
+- [AGENTS.md](AGENTS.md) - AI agent context: project summary, conventions, architecture
 - [API Reference](docs/api.md) - Endpoint list, request/response formats, and planned APIs
 - [Core Concepts](docs/concept.md) - Data model, relationships, and spaced repetition system
 - [Import Workflow](docs/import.md) - AMQ song export import process and conflict resolution

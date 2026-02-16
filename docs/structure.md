@@ -23,7 +23,13 @@ tests/
 
 ## Database Schema
 
-The service uses SQLite with `datasource.db` as the main data file.
+The database is a SQLite file stored **outside** the project directory (e.g., `~/db/datasource.db`). Initialize with:
+
+```bash
+sqlite3 ~/db/datasource.db < docs/init-db.sql
+```
+
+See [docs/init-db.sql](init-db.sql) for the full schema definition.
 
 ### Tables
 

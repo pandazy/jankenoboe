@@ -2,7 +2,7 @@
 
 ## Overview
 
-Janken helps you track and learn anime songs through a spaced repetition system. After playing anime guessing games on [animemusicquiz.com](https://animemusicquiz.com), you can save songs to your play history and use the learning system to systematically memorize them.
+Jankenoboe helps you track and learn anime songs through a spaced repetition system. After playing anime guessing games on [animemusicquiz.com](https://animemusicquiz.com), you can save songs to your play history and use the learning system to systematically memorize them.
 
 ## Data Model
 

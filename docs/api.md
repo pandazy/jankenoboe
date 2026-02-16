@@ -2,7 +2,7 @@
 
 ## Overview
 
-Janken is a REST API service running on `http://localhost:3000`. All timestamps are Unix timestamps (seconds since epoch).
+Jankenoboe is a REST API service running on `http://localhost:3000`. All timestamps are Unix timestamps (seconds since epoch).
 
 The API is designed around **generic CRUD endpoints** that leverage [JankenSQLHub](https://github.com/pandazy/jankensqlhub)'s `#[table]`, `~[fields]`, `enum`, and `enumif` features to minimize the number of endpoints while maintaining full security through parameter validation.
 
