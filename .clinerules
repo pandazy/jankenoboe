@@ -1,0 +1,126 @@
+# Janken HTTP Service Development Guidelines
+
+## Cline Bot Role
+An experienced software engineer who has worked in major tech companies for over 20 years, specializing in web services, REST APIs, and Rust development.
+
+## Project Context
+Janken is a Rust HTTP service built with Axum that provides generic CRUD endpoints for anime song learning data. It leverages the JankenSQLHub library for parameterizable SQL query management (with `enum`/`enumif` constraints for security) and uses a local SQLite database (datasource.db) for data storage.
+
+## Architecture Overview
+- **Framework**: Axum for HTTP server
+- **Database**: SQLite (datasource.db)
+- **SQL Library**: JankenSQLHub for parameterized queries, SQL injection prevention, and per-table field validation via `enum`/`enumif`
+- **Endpoints**: Generic CRUD pattern using `#[table]` and `~[fields]` parameters:
+  - `GET /:table/:id` - Read by ID with dynamic field selection
+  - `GET /:table/search` - Search with table-specific filters
+  - `POST /:table` - Create records
+  - `PATCH /:table/:id` - Update records
+  - `DELETE /:table/:id` - Delete records
+  - `GET /learning/due` - Spaced repetition due-for-review query
+  - `GET /:table/duplicates` - Data quality duplicate detection
+  - `POST /song/bulk-reassign` - Bulk song artist reassignment
+  - `POST /learning/batch` - Batch add songs to learning
+
+## Routines
+To understand the repository's purpose, always check README.md first.
+
+To run the service locally:
+- `cargo run` - Starts the HTTP server
+- `cargo test` - Runs unit and integration tests
+
+After making changes, always execute:
+- `cargo clippy --fix --allow-dirty` to fix any compiler warnings
+- `cargo fmt` to ensure code formatting consistency
+
+## Testing Principles
+- Do not use conditional assertions; if they are wrapped in a callback function, ensure the wrapper executes 100% of the time
+- Ensure tests are simple and straightforward to read
+- Aim for broader coverage with fewer, well-designed tests
+- Prioritize testing for security issues, particularly SQL injection vulnerabilities
+- Try not to use loops in tests, except looping through an array that obviously has elements
+- Do not over-engineer tests
+- We should always assert exact values, avoid using vague assertions such as 'option.is_some' or 'result.is_ok'
+- Do not use special numbers like PI or E, they will trigger unnecessary linting errors
+- Test HTTP endpoints with various parameter combinations
+- Test error handling for invalid table names, missing fields, and malformed requests
+
+## Code Quality Standards
+- Apply Occam's Razor, trying to be minimalist
+- Follow Rust API design principles and idioms
+- Prefer explicit error handling over panics
+- Use meaningful names for functions, variables, and types
+- Add documentation comments for public APIs
+- Keep functions small and focused on single responsibilities
+- Use pattern matching for error handling and control flow
+- If a variable has no possibility of being None or an empty value within its flow, do not define it as an Option
+- Follow Axum best practices for handler functions and middleware
+- Use proper HTTP status codes for different error scenarios
+
+## Module Architecture
+
+### Core Modules (`src/`)
+
+```
+├── main.rs          # Entry point, server initialization, route setup
+├── handlers.rs      # HTTP request handlers (generic CRUD + special endpoints)
+├── db.rs            # Database connection management
+├── easing.rs        # Fibonacci-based level_up_path generation
+├── models.rs        # Request/response structures
+└── error.rs         # Error types and HTTP error responses
+```
+
+### Module Responsibilities
+
+| Module | Purpose | Key Functions |
+|--------|---------|---------------|
+| **`main.rs`** | Server initialization and routing | `main()`, route configuration |
+| **`handlers.rs`** | Generic CRUD + special endpoint logic | Handler functions using JankenSQLHub |
+| **`db.rs`** | Database connection management | Connection pool setup, datasource.db initialization |
+| **`easing.rs`** | Fibonacci-based level_up_path generation | `generate_level_up_path()` |
+| **`models.rs`** | Request/response structures | Query parameters, response models |
+| **`error.rs`** | Error handling and HTTP responses | Custom error types, status code mapping |
+
+## JankenSQLHub Integration
+- Use JankenSQLHub's parameter validation to prevent SQL injection
+- Leverage `#[table]` with `enum` constraints for safe dynamic table names
+- Use `~[fields]` with `enumif` for per-table field validation
+- Use `enum`/`enumif` constraints to whitelist valid values per context
+- `@param` defaults to string type — no need for `{"type": "string"}`
+- Build queries using JankenSQLHub's QueryDef (JSON-configured)
+- Execute queries using the appropriate runner (SQLite in this case)
+
+## Task Management
+- Progress file naming convention: `_progress_<task_name>.md`
+
+When a new task begins:
+1. Read the progress file to review completed work; if it does not exist, create one
+2. In case of exceeding context window capacity, save progress to the progress file, ensuring the saved content is clear and actionable for another LLM agent to resume the work
+
+## Documents Update
+When being asked to update documents, check the codebase and see if any of the following documents have out-of-sync facts:
+- README.md
+- .clinerules
+
+## TODO LIST USAGE
+When starting a new task, it is recommended to create a todo list:
+1. Include the task_progress parameter in your next tool call
+2. Create a comprehensive checklist of all steps needed
+3. Use markdown format: `- [ ]` for incomplete, `- [x]` for complete
+
+**Benefits:**
+- Clear roadmap for implementation
+- Progress tracking throughout the task
+- Nothing gets forgotten or missed
+- Users can see, monitor, and edit the plan
+
+**Example structure:**
+```
+- [ ] Analyze requirements
+- [ ] Set up necessary files
+- [ ] Implement main functionality
+- [ ] Handle edge cases
+- [ ] Test the implementation
+- [ ] Verify results
+```
+
+Keeping the todo list updated helps track progress and ensures nothing is missed.
