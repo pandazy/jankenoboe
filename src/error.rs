@@ -1,60 +1,32 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
-use jankensqlhub::{get_error_data, get_error_info, JankenError};
-use serde_json::{json, Value};
+use serde_json::json;
+use std::fmt;
 
+/// Application error type for CLI operations.
+/// All errors output JSON to stderr and exit with code 1.
 #[derive(Debug)]
 pub enum AppError {
-    Database(String),
+    /// Invalid CLI parameter or input
     InvalidParameter(String),
-    NotFound,
+    /// Record not found
+    NotFound(String),
+    /// Database error
+    Database(String),
+    /// Internal/unexpected error
     Internal(String),
-    Janken(JankenErrorResponse),
 }
 
-#[derive(Debug)]
-pub struct JankenErrorResponse {
-    pub code: u16,
-    pub name: String,
-    pub description: String,
-    pub metadata: Option<Value>,
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::Janken(err) => {
-                let body = Json(json!({
-                    "error": {
-                        "code": err.code,
-                        "name": err.name,
-                        "description": err.description,
-                        "metadata": err.metadata,
-                    }
-                }));
-                (StatusCode::BAD_REQUEST, body).into_response()
-            }
-            _ => {
-                let (status, message) = match self {
-                    AppError::Database(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-                    AppError::InvalidParameter(msg) => (StatusCode::BAD_REQUEST, msg),
-                    AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found".to_string()),
-                    AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-                    AppError::Janken(_) => unreachable!(),
-                };
-
-                let body = Json(json!({
-                    "error": message,
-                }));
-
-                (status, body).into_response()
-            }
+            AppError::InvalidParameter(msg) => write!(f, "{msg}"),
+            AppError::NotFound(msg) => write!(f, "{msg}"),
+            AppError::Database(msg) => write!(f, "{msg}"),
+            AppError::Internal(msg) => write!(f, "{msg}"),
         }
     }
 }
+
+impl std::error::Error for AppError {}
 
 impl From<rusqlite::Error> for AppError {
     fn from(err: rusqlite::Error) -> Self {
@@ -62,43 +34,71 @@ impl From<rusqlite::Error> for AppError {
     }
 }
 
-impl From<JankenError> for AppError {
-    fn from(err: JankenError) -> Self {
-        let data = get_error_data(&err);
-        let info = get_error_info(data.code);
-        let metadata: Option<Value> = data
-            .metadata
-            .as_ref()
-            .and_then(|s| serde_json::from_str(s).ok());
-
-        AppError::Janken(JankenErrorResponse {
-            code: data.code,
-            name: info.map(|i| i.name.to_string()).unwrap_or_default(),
-            description: info.map(|i| i.description.to_string()).unwrap_or_default(),
-            metadata,
-        })
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError::InvalidParameter(format!("Invalid JSON: {err}"))
     }
 }
 
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {
-        // Try to downcast to JankenError
-        if let Some(janken_err) = err.downcast_ref::<JankenError>() {
-            let data = get_error_data(janken_err);
-            let info = get_error_info(data.code);
-            let metadata: Option<Value> = data
-                .metadata
-                .as_ref()
-                .and_then(|s| serde_json::from_str(s).ok());
+        AppError::Internal(err.to_string())
+    }
+}
 
-            AppError::Janken(JankenErrorResponse {
-                code: data.code,
-                name: info.map(|i| i.name.to_string()).unwrap_or_default(),
-                description: info.map(|i| i.description.to_string()).unwrap_or_default(),
-                metadata,
-            })
-        } else {
-            AppError::Internal(err.to_string())
-        }
+/// Print error JSON to stderr and exit with code 1.
+pub fn exit_with_error(err: &AppError) -> ! {
+    let msg = json!({"error": err.to_string()});
+    eprintln!("{msg}");
+    std::process::exit(1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_invalid_parameter() {
+        let err = AppError::InvalidParameter("bad input".to_string());
+        assert_eq!(err.to_string(), "bad input");
+    }
+
+    #[test]
+    fn test_display_not_found() {
+        let err = AppError::NotFound("missing".to_string());
+        assert_eq!(err.to_string(), "missing");
+    }
+
+    #[test]
+    fn test_display_database() {
+        let err = AppError::Database("db error".to_string());
+        assert_eq!(err.to_string(), "db error");
+    }
+
+    #[test]
+    fn test_display_internal() {
+        let err = AppError::Internal("internal error".to_string());
+        assert_eq!(err.to_string(), "internal error");
+    }
+
+    #[test]
+    fn test_from_rusqlite_error() {
+        let rusqlite_err = rusqlite::Error::QueryReturnedNoRows;
+        let app_err: AppError = rusqlite_err.into();
+        assert_eq!(app_err.to_string(), "Query returned no rows");
+    }
+
+    #[test]
+    fn test_from_serde_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("not json").unwrap_err();
+        let app_err: AppError = json_err.into();
+        assert!(app_err.to_string().starts_with("Invalid JSON:"));
+    }
+
+    #[test]
+    fn test_from_anyhow_error() {
+        let anyhow_err = anyhow::anyhow!("something broke");
+        let app_err: AppError = anyhow_err.into();
+        assert_eq!(app_err.to_string(), "something broke");
     }
 }

@@ -2,17 +2,88 @@
 
 An anime song learning system that tracks songs from [animemusicquiz.com](https://animemusicquiz.com) and uses spaced repetition to help memorize them. The name combines "janken" (the creator's alias on AMQ) with "oboe" (覚え, memory/memorization in Japanese).
 
-**Two ways to use it:**
-- **With an AI agent:** Non-technical users can interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that run `sqlite3` queries directly — no server needed.
-- **With the HTTP API** *(under construction)*: A Rust service provides REST endpoints for programmatic access and efficiency.
+Non-technical users interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that call `jankenoboe` CLI commands. The CLI is a Rust binary that provides fast, validated database operations with JSON output.
 
 ## Prerequisites
 
-- **SQLite 3** — required for both access modes
+- **SQLite 3** — the database engine
   - macOS: `brew install sqlite` (or pre-installed)
   - Ubuntu/Debian: `sudo apt install sqlite3`
-  - Windows: download from [sqlite.org](https://www.sqlite.org/download.html)
-- **Rust 1.70+** — only needed for the HTTP API mode
+
+## Installation
+
+### Option 1: Install from GitHub (recommended)
+
+Download the pre-built binary for your platform:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/install.sh | sh
+```
+
+This detects your OS/architecture and installs `jankenoboe` to `~/.local/bin/`. Make sure `~/.local/bin` is in your `PATH`.
+
+### Option 2: Install via Cargo
+
+If you have Rust 1.70+ installed:
+
+```bash
+cargo install --git https://github.com/pandazy/jankenoboe.git
+```
+
+This builds from source and installs `jankenoboe` to `~/.cargo/bin/`.
+
+### Option 3: Build from source
+
+```bash
+git clone https://github.com/pandazy/jankenoboe.git
+cd jankenoboe
+cargo build --release
+# Binary at target/release/jankenoboe — copy it to your PATH
+cp target/release/jankenoboe ~/.local/bin/
+```
+
+## Upgrading
+
+To upgrade to the latest version, simply re-run the install script. It always fetches and installs the latest release, overwriting any existing binary — there is no version check or "already up to date" skip.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/install.sh | sh
+```
+
+If you installed via Cargo:
+
+```bash
+cargo install --git https://github.com/pandazy/jankenoboe.git --force
+```
+
+## Uninstallation
+
+### If installed via install.sh or manual copy
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/uninstall.sh | sh
+```
+
+Or run locally: `sh uninstall.sh`
+
+This removes the `jankenoboe` binary from `~/.local/bin/` and `~/.cargo/bin/`. Your database and shell configuration are preserved.
+
+### If installed via Cargo
+
+```bash
+cargo uninstall jankenoboe
+```
+
+### Optional cleanup
+
+After uninstalling, you may also want to:
+
+```bash
+# Remove the database
+rm ~/db/datasource.db
+
+# Remove JANKENOBOE_DB from your shell profile (~/.zshrc, ~/.bashrc, etc.)
+```
 
 ## Setup
 
@@ -27,72 +98,105 @@ sqlite3 ~/db/datasource.db < docs/init-db.sql
 
 This creates all tables, indexes, and constraints. See [docs/init-db.sql](docs/init-db.sql) for the full schema.
 
-### 2. Import your song data
+### 2. Set the database path
+
+Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
+
+```bash
+export JANKENOBOE_DB=~/db/datasource.db
+```
+
+### 3. Import your song data
 
 1. Play a round on [animemusicquiz.com](https://animemusicquiz.com)
 2. After the game, export your song list as JSON (see [sample export](docs/amq_song_export-sample.json) for the format)
 3. Give the exported JSON file to your AI agent and ask it to import the songs — the agent will resolve artists, shows, and songs, creating records as needed (see [Import Workflow](docs/import.md) for details)
 
-### 3. Start using it
+### 4. Start using it
 
-**Agent mode (no server needed):** Point your AI agent (e.g., Claude) to the `skills/` directory and tell it the path to your database file. The agent will run `sqlite3` queries directly.
+Point your AI agent (e.g., Claude) to the `skills/` directory and tell it the path to your database file. The agent uses `jankenoboe` CLI commands to interact with the database. You can also use the CLI directly (see [CLI](#cli) below).
 
-**HTTP API mode** *(under construction)*:
+## CLI
 
-```bash
-export JANKENOBOE_DB=~/db/datasource.db
-cargo run
-```
+The CLI uses subcommands organized by functionality. All commands output JSON to stdout. Set `JANKENOBOE_DB` to your database path before use.
 
-The service starts on `http://localhost:3000`.
-
-## API *(under construction)*
-
-The API uses **generic CRUD endpoints** powered by [JankenSQLHub](https://github.com/pandazy/jankensqlhub) to minimize endpoint count while maintaining security through `enum`/`enumif` parameter validation.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/:table/:id` | Get record by ID |
-| GET | `/:table/search` | Search with table-specific filters |
-| POST | `/:table` | Create a new record |
-| PATCH | `/:table/:id` | Update a record |
-| DELETE | `/:table/:id` | Delete a record |
-| GET | `/learning/due` | Get songs due for review |
-| GET | `/:table/duplicates` | Find duplicate records |
-| POST | `/song/bulk-reassign` | Bulk reassign songs to new artist |
-| POST | `/learning/batch` | Add songs to learning system |
-
-**Tables:** `artist`, `show`, `song`, `play_history`, `learning`, `rel_show_song`
-
-**Examples:**
+### Querying
 
 ```bash
 # Get a song by ID
-curl "http://localhost:3000/song/3b105bd4-c437-4720-a373-660bd5d68532?fields=id,name,artist_id"
+jankenoboe get song 3b105bd4-c437-4720-a373-660bd5d68532 --fields id,name,artist_id
 
-# Search artist by name
-curl "http://localhost:3000/artist/search?fields=id,name&name=minami"
+# Search artist by name (case-insensitive)
+jankenoboe search artist --fields id,name --term '{"name": {"value": "minami", "match": "exact-i"}}'
 
 # List songs by artist
-curl "http://localhost:3000/song/search?fields=id,name&artist_id=2196b222-ed04-4260-90c8-d18382bf8900"
+jankenoboe search song --fields id,name --term '{"artist_id": {"value": "2196b222-ed04-4260-90c8-d18382bf8900"}}'
+
+# Find duplicate artists
+jankenoboe duplicates artist
+```
+
+### Learning (Spaced Repetition)
+
+```bash
+# Get songs due for review
+jankenoboe learning-due
 
 # Add songs to learning
-curl -X POST "http://localhost:3000/learning/batch" \
-  -H "Content-Type: application/json" \
-  -d '{"song_ids": ["3b105bd4-c437-4720-a373-660bd5d68532"]}'
+jankenoboe learning-batch --song-ids 3b105bd4-c437-4720-a373-660bd5d68532
+
+# Generate an HTML report of due songs (with show names, media URLs)
+jankenoboe learning-song-review
+jankenoboe learning-song-review --output ~/reports/review.html
+
+# Level up all due songs by 1 (batch "mark as learned")
+jankenoboe learning-song-levelup-due
 
 # Level up a learning record
-curl -X PATCH "http://localhost:3000/learning/bb9d3b38-9c28-4d11-aecd-6d2650724b98" \
-  -H "Content-Type: application/json" \
-  -d '{"level": 8}'
+jankenoboe update learning bb9d3b38-9c28-4d11-aecd-6d2650724b98 --data '{"level": 8}'
 ```
+
+### URL Percent-Encoding
+
+String values in `--term` and `--data` are automatically URL percent-decoded. This avoids shell quoting issues with special characters like `'`, `"`, `(`, `)`, `&`, `!`, and spaces. Use the included Python helper to encode values:
+
+```bash
+# Encode a value
+python3 tools/url_encode.py "it's a test"
+# Output: it%27s%20a%20test
+
+# Use in search
+jankenoboe search artist --fields id,name --term '{"name":{"value":"it%27s%20a%20test"}}'
+
+# Use in create
+jankenoboe create artist --data '{"name":"Ado%27s%20Music"}'
+```
+
+Plain text (without `%` sequences) works unchanged. Keys and non-string values (numbers, booleans) are not decoded.
+
+### Data Management
+
+```bash
+# Create an artist
+jankenoboe create artist --data '{"name": "ChoQMay"}'
+
+# Update a record
+jankenoboe update song abc123 --data '{"artist_id": "new-artist-id"}'
+
+# Delete a record
+jankenoboe delete artist abc123
+
+# Bulk reassign songs to a new artist
+jankenoboe bulk-reassign --song-ids song1,song2 --new-artist-id correct-artist-id
+```
+
+**Tables:** `artist`, `show`, `song`, `play_history`, `learning`, `rel_show_song`
+
+See the full [CLI Reference](docs/cli.md) for all commands, options, and query definitions.
 
 ## Agent Skills (Claude)
 
-The `skills/` directory contains [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for interacting with the Jankenoboe database. Each skill asks for the SQLite database path upfront and supports two access modes:
-
-- **HTTP mode**: Uses the REST API when the local server is running (`localhost:3000`)
-- **SQL mode**: Falls back to direct `sqlite3` CLI queries when the server is unavailable
+The `skills/` directory contains [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for interacting with the Jankenoboe database. Each skill uses the `jankenoboe` CLI binary for validated, fast operations with JSON output.
 
 | Skill | Description |
 |-------|-------------|
@@ -100,11 +204,15 @@ The `skills/` directory contains [Claude Agent Skills](https://platform.claude.c
 | [learning-with-jankenoboe](skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: add songs, level up/down, graduate, check due reviews |
 | [maintaining-jankenoboe-data](skills/maintaining-jankenoboe-data/SKILL.md) | CRUD operations: create/update/delete records, bulk reassign, merge duplicates |
 | [reviewing-due-songs](skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
+| [importing-amq-songs](skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
 
 ## Documentation
 
 - [AGENTS.md](AGENTS.md) - AI agent context: project summary, conventions, architecture
-- [API Reference](docs/api.md) - Endpoint list, request/response formats, and planned APIs
+- [CLI Reference](docs/cli.md) - Command overview, operations coverage, exit codes
+  - [Querying Commands](docs/cli-querying.md) - get, search, duplicates
+  - [Learning Commands](docs/cli-learning.md) - learning-due, learning-batch
+  - [Data Management Commands](docs/cli-data-management.md) - create, update, delete, bulk-reassign
 - [Core Concepts](docs/concept.md) - Data model, relationships, and spaced repetition system
 - [Import Workflow](docs/import.md) - AMQ song export import process and conflict resolution
 - [Project Structure](docs/structure.md) - Directory layout, database schema, and dependencies

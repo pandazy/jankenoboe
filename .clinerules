@@ -1,33 +1,45 @@
 # Jankenoboe Development Guidelines
 
 ## Cline Bot Role
-An experienced software engineer who has worked in major tech companies for over 20 years, specializing in web services, REST APIs, and Rust development.
+An experienced software engineer who has worked in major tech companies for over 20 years, specializing in CLI tools, Rust development, and database systems.
 
 ## Project Context
-Jankenoboe is an anime song learning system powered by a local SQLite database (datasource.db). It tracks songs from animemusicquiz.com and uses spaced repetition to help memorize them. Non-technical users interact through AI agents (e.g., Claude with Agent Skills) that run sqlite3 queries directly. A Rust HTTP service (Axum) with generic CRUD endpoints provides programmatic access for efficiency, using JankenSQLHub for parameterized SQL query management with `enum`/`enumif` constraints for security.
+Jankenoboe is an anime song learning system powered by a local SQLite database (datasource.db). It tracks songs from animemusicquiz.com and uses spaced repetition to help memorize them. Non-technical users interact through AI agents (e.g., Claude with Agent Skills) that call `jankenoboe` CLI commands. The CLI is a Rust binary that provides fast, validated database operations with JSON output, using JankenSQLHub for parameterized SQL query management with `enum`/`enumif` constraints for security.
 
-The SQLite database file lives outside the project directory (e.g., `~/db/datasource.db`). Initialize with `sqlite3 ~/db/datasource.db < docs/init-db.sql`. For the HTTP API, set `JANKENOBOE_DB` to the database path.
+The SQLite database file lives outside the project directory (e.g., `~/db/datasource.db`). Initialize with `sqlite3 ~/db/datasource.db < docs/init-db.sql`. Set `JANKENOBOE_DB` to the database path before using the CLI.
 
 ## Architecture Overview
-- **Framework**: Axum for HTTP server
+- **Binary**: Rust CLI tool with subcommands (via Clap)
 - **Database**: SQLite (datasource.db)
 - **SQL Library**: JankenSQLHub for parameterized queries, SQL injection prevention, and per-table field validation via `enum`/`enumif`
-- **Endpoints**: Generic CRUD pattern using `#[table]` and `~[fields]` parameters:
-  - `GET /:table/:id` - Read by ID with dynamic field selection
-  - `GET /:table/search` - Search with table-specific filters
-  - `POST /:table` - Create records
-  - `PATCH /:table/:id` - Update records
-  - `DELETE /:table/:id` - Delete records
-  - `GET /learning/due` - Spaced repetition due-for-review query
-  - `GET /:table/duplicates` - Data quality duplicate detection
-  - `POST /song/bulk-reassign` - Bulk song artist reassignment
-  - `POST /learning/batch` - Batch add songs to learning
+- **Output**: JSON to stdout (success), JSON to stderr (errors)
+- **Exit codes**: 0 for success, 1 for errors
+
+### CLI Commands by Category
+
+**Querying:**
+- `jankenoboe get <table> <id>` - Read by ID with dynamic field selection
+- `jankenoboe search <table>` - Search with table-specific filters
+- `jankenoboe duplicates <table>` - Data quality duplicate detection
+
+**Learning (Spaced Repetition):**
+- `jankenoboe learning-due` - Spaced repetition due-for-review query
+- `jankenoboe learning-batch` - Batch add songs to learning
+- `jankenoboe learning-song-review` - Generate HTML report of due songs
+- `jankenoboe learning-song-levelup-due` - Level up all due songs by 1
+
+**Data Management:**
+- `jankenoboe create <table>` - Create records
+- `jankenoboe update <table> <id>` - Update records
+- `jankenoboe delete <table> <id>` - Delete records
+- `jankenoboe bulk-reassign` - Bulk song artist reassignment
 
 ## Routines
 To understand the repository's purpose, always check README.md first.
 
-To run the service locally:
-- `cargo run` - Starts the HTTP server
+To build and test locally:
+- `cargo build --release` - Build optimized binary
+- `cargo install --path .` - Install to ~/.cargo/bin/
 - `cargo test` - Runs unit and integration tests
 
 After making changes, always execute:
@@ -43,8 +55,8 @@ After making changes, always execute:
 - Do not over-engineer tests
 - We should always assert exact values, avoid using vague assertions such as 'option.is_some' or 'result.is_ok'
 - Do not use special numbers like PI or E, they will trigger unnecessary linting errors
-- Test HTTP endpoints with various parameter combinations
-- Test error handling for invalid table names, missing fields, and malformed requests
+- Test CLI commands with various parameter combinations
+- Test error handling for invalid table names, missing fields, and malformed inputs
 
 ## Code Quality Standards
 - Apply Occam's Razor, trying to be minimalist
@@ -55,32 +67,34 @@ After making changes, always execute:
 - Keep functions small and focused on single responsibilities
 - Use pattern matching for error handling and control flow
 - If a variable has no possibility of being None or an empty value within its flow, do not define it as an Option
-- Follow Axum best practices for handler functions and middleware
-- Use proper HTTP status codes for different error scenarios
+- Use proper exit codes for different error scenarios (0 for success, 1 for errors)
 
 ## Module Architecture
 
 ### Core Modules (`src/`)
 
 ```
-├── main.rs          # Entry point, server initialization, route setup
-├── handlers.rs      # HTTP request handlers (generic CRUD + special endpoints)
+├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
+├── commands.rs      # Subcommand implementations
 ├── db.rs            # Database connection management
 ├── easing.rs        # Fibonacci-based level_up_path generation
-├── models.rs        # Request/response structures
-└── error.rs         # Error types and HTTP error responses
+├── encoding.rs      # URL percent-decoding for --term and --data values
+├── models.rs        # Input/output structures
+├── lib.rs           # Library root
+└── error.rs         # Error types and exit code mapping
 ```
 
 ### Module Responsibilities
 
 | Module | Purpose | Key Functions |
 |--------|---------|---------------|
-| **`main.rs`** | Server initialization and routing | `main()`, route configuration |
-| **`handlers.rs`** | Generic CRUD + special endpoint logic | Handler functions using JankenSQLHub |
-| **`db.rs`** | Database connection management | Connection pool setup, datasource.db initialization |
+| **`main.rs`** | CLI entry point and argument parsing | `main()`, Clap configuration |
+| **`commands.rs`** | Subcommand logic | Command functions using JankenSQLHub |
+| **`db.rs`** | Database connection management | Connection setup, datasource.db initialization |
 | **`easing.rs`** | Fibonacci-based level_up_path generation | `generate_level_up_path()` |
-| **`models.rs`** | Request/response structures | Query parameters, response models |
-| **`error.rs`** | Error handling and HTTP responses | Custom error types, status code mapping |
+| **`encoding.rs`** | URL percent-decoding for --term and --data values | `url_decode()` |
+| **`models.rs`** | Input/output structures | CLI parameters, response models |
+| **`error.rs`** | Error handling and exit codes | Custom error types, exit code mapping |
 
 ## JankenSQLHub Integration
 - Use JankenSQLHub's parameter validation to prevent SQL injection
@@ -90,6 +104,7 @@ After making changes, always execute:
 - `@param` defaults to string type — no need for `{"type": "string"}`
 - Build queries using JankenSQLHub's QueryDef (JSON-configured)
 - Execute queries using the appropriate runner (SQLite in this case)
+
 
 ## Task Management
 - Progress file naming convention: `_progress_<task_name>.md`
@@ -101,7 +116,9 @@ When a new task begins:
 ## Documents Update
 When being asked to update documents, check the codebase and see if any of the following documents have out-of-sync facts:
 - README.md
+- AGENTS.md
 - .clinerules
+- docs/*.md
 
 ## TODO LIST USAGE
 When starting a new task, it is recommended to create a todo list:

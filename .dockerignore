@@ -1,0 +1,4 @@
+target/
+.git/
+*.db
+_progress_*.md

@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS "artist" (
 CREATE TABLE IF NOT EXISTS "show" (
 	"id" TEXT PRIMARY KEY,
 	"name" TEXT NOT NULL,
-	"name_romaji" TEXT DEFAULT '',
-	"vintage" TEXT DEFAULT '',
-	"s_type" TEXT DEFAULT '',
+	"name_romaji" TEXT,
+	"vintage" TEXT,
+	"s_type" TEXT,
 	"created_at" INTEGER,
 	"updated_at" INTEGER,
 	"status" INTEGER NOT NULL DEFAULT 0 -- 0: normal, 1: deleted
@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS "play_history" (
 	"show_id" TEXT NOT NULL,
 	"song_id" TEXT NOT NULL,
 	"created_at" INTEGER NOT NULL,
-	"media_url" TEXT DEFAULT ''
+	"media_url" TEXT DEFAULT '',
+	"status" INTEGER DEFAULT 0 -- 0: normal, 1: deleted
 );
 
 CREATE TABLE IF NOT EXISTS "learning" (

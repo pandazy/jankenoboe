@@ -4,21 +4,51 @@
 
 ```
 src/
-├── main.rs          # Entry point, server initialization, route setup
-├── handlers.rs      # HTTP request handlers
+├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
+├── commands.rs      # Subcommand implementations (get, search, create, update, delete, etc.)
 ├── db.rs            # Database connection management
 ├── easing.rs        # Fibonacci-based level_up_path generation
-├── models.rs        # Request/response structures
-└── error.rs         # Error types and HTTP error responses
+├── encoding.rs      # URL percent-decoding for --term and --data values
+├── models.rs        # Input/output structures
+├── lib.rs           # Library root
+└── error.rs         # Error types and exit code mapping
 
 docs/
-├── concept.md       # Core concepts and data model
-├── structure.md     # Project structure and database schema
-├── development.md   # Development guidelines
-└── archived_tasks/  # Completed task documentation
+├── cli.md              # CLI reference overview and operations coverage
+├── cli-querying.md     # Querying commands: get, search, duplicates
+├── cli-learning.md     # Learning commands: learning-due, learning-batch
+├── cli-data-management.md  # Data management: create, update, delete, bulk-reassign
+├── concept.md          # Core concepts and data model
+├── structure.md        # Project structure and database schema (this file)
+├── development.md      # Development guidelines
+├── import.md           # AMQ song import workflow
+└── archived_tasks/     # Completed task documentation
 
-tests/
-└── integration_test.rs  # Integration tests
+skills/
+├── querying-jankenoboe/SKILL.md       # Search/read: artists, shows, songs, learning, duplicates
+├── learning-with-jankenoboe/SKILL.md  # Spaced repetition: batch add, level up/down, graduate
+├── maintaining-jankenoboe-data/SKILL.md  # CRUD: create/update/delete, bulk reassign, merge
+└── reviewing-due-songs/SKILL.md       # Display due review songs for practice
+
+templates/
+└── learning-song-review.html  # HTML template for due song review report
+
+tools/
+└── url_encode.py        # Python helper to URL percent-encode values for CLI args
+
+e2e/
+├── Dockerfile           # Multi-stage Docker build for e2e testing
+└── run_tests.sh         # Shell-based e2e test suite
+
+.github/workflows/
+├── e2e.yml              # CI: e2e tests, unit tests, clippy (on push/PR to main)
+└── release.yml          # CD: cross-platform binary builds + GitHub Release (on v* tags)
+
+install.sh               # Cross-platform installer script
+uninstall.sh             # Cross-platform uninstaller script
+release.md               # Release notes (used as GitHub Release body on v* tags)
+Makefile                 # Docker e2e test targets (make e2e, make clean-e2e)
+.dockerignore            # Excludes target/, .git/, etc. from Docker build context
 ```
 
 ## Database Schema
@@ -106,8 +136,8 @@ See [docs/init-db.sql](init-db.sql) for the full schema definition.
 
 ## Dependencies
 
-- **Axum** - HTTP framework
+- **Clap** - CLI argument parsing
 - **SQLite** - Database (via rusqlite)
 - **JankenSQLHub** - Parameterized SQL query management
 - **Serde** - JSON serialization
-- **Tokio** - Async runtime
+- **UUID** - Record ID generation

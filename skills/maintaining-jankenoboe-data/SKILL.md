@@ -1,170 +1,177 @@
 ---
 name: maintaining-jankenoboe-data
-description: Create, update, and delete anime song data in Jankenoboe. Manages artists, shows, songs, play history, and show-song relationships. Handles bulk song reassignment, duplicate detection, and soft deletes. Use when the user wants to add, edit, delete, import, fix, merge, or reassign anime song records. Supports both HTTP API (localhost:3000) and direct SQLite queries.
+description: Create, update, and delete anime song data in Jankenoboe. Manages artists, shows, songs, play history, and show-song relationships. Handles bulk song reassignment, duplicate detection, and soft deletes. Use when the user wants to add, edit, delete, import, fix, merge, or reassign anime song records.
 ---
 
 ## Setup
 
-**Always ask the user for the SQLite database file path first** (e.g., `datasource.db`). Store it for the session.
-
-**Determine access mode:**
-1. **HTTP mode**: Try `curl -s http://localhost:3000/artist/search?fields=id,name&name=test`. If it responds, use HTTP.
-2. **SQL mode**: If the server is unreachable, use `sqlite3 <db_path>` directly.
-
-**⚠️ Shell safety for SQL mode:** SQL queries containing `%s` (in `strftime`) get interpreted by zsh as format specifiers. **Always write SQL to a temp file and pipe it to sqlite3** instead of passing inline:
+The `jankenoboe` CLI must be installed. Set the `JANKENOBOE_DB` environment variable to the SQLite database path:
 ```bash
-cat > /tmp/query.sql << 'EOSQL'
-INSERT INTO artist (id, name, created_at, updated_at, status)
-VALUES ('abc', 'Test', CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER), 0);
-EOSQL
-sqlite3 <db_path> < /tmp/query.sql
+export JANKENOBOE_DB=~/db/datasource.db
 ```
-The `<< 'EOSQL'` (quoted heredoc) prevents all shell interpolation inside the SQL.
+
+**Always ask the user for the database path first** if `JANKENOBOE_DB` is not already set.
+
+---
 
 ## Create Records
 
-Server generates `id` (UUID) and timestamps. In SQL mode, generate UUIDs via `python3 -c "import uuid; print(uuid.uuid4())"`.
+The CLI generates `id` (UUID) and timestamps (`created_at`, `updated_at`) automatically.
+
+**URL Percent-Encoding:** All string values in `--data` JSON are automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing quotes, spaces, or shell-problematic characters (e.g., `Ado%27s` → `Ado's`, `%20` → space). Plain text without `%` works unchanged. Keys and non-string values (numbers, booleans) are not decoded.
 
 ### Artist
-**HTTP:**
 ```bash
-curl -X POST http://localhost:3000/artist \
-  -H "Content-Type: application/json" \
-  -d '{"name": "<name>"}'
-```
-**SQL:**
-```sql
-INSERT INTO artist (id, name, created_at, updated_at, status)
-VALUES ('<uuid>', '<name>', CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER), 0);
+jankenoboe create artist --data '{"name": "ChoQMay"}'
 ```
 
 ### Show
-**HTTP:**
 ```bash
-curl -X POST http://localhost:3000/show \
-  -H "Content-Type: application/json" \
-  -d '{"name": "<name>", "name_romaji": "<romaji>", "vintage": "<vintage>", "s_type": "<type>"}'
-```
-**SQL:**
-```sql
-INSERT INTO show (id, name, name_romaji, vintage, s_type, created_at, updated_at, status)
-VALUES ('<uuid>', '<name>', '<romaji>', '<vintage>', '<type>',
-  CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER), 0);
+jankenoboe create show --data '{"name": "A Sign of Affection", "name_romaji": "Yubisaki to Renren", "vintage": "Winter 2024", "s_type": "TV"}'
 ```
 
 ### Song
-**HTTP:**
 ```bash
-curl -X POST http://localhost:3000/song \
-  -H "Content-Type: application/json" \
-  -d '{"name": "<name>", "artist_id": "<artist_id>"}'
-```
-**SQL:**
-```sql
-INSERT INTO song (id, name, artist_id, created_at, updated_at, status)
-VALUES ('<uuid>', '<name>', '<artist_id>',
-  CAST(strftime('%s','now') AS INTEGER), CAST(strftime('%s','now') AS INTEGER), 0);
+jankenoboe create song --data '{"name": "snowspring", "artist_id": "artist-uuid"}'
 ```
 
 ### Play History
-**HTTP:**
 ```bash
-curl -X POST http://localhost:3000/play_history \
-  -H "Content-Type: application/json" \
-  -d '{"show_id": "<show_id>", "song_id": "<song_id>", "media_url": "<url>"}'
+jankenoboe create play_history --data '{"show_id": "show-uuid", "song_id": "song-uuid", "media_url": "https://..."}'
 ```
-**SQL:**
-```sql
-INSERT INTO play_history (id, show_id, song_id, media_url, created_at, status)
-VALUES ('<uuid>', '<show_id>', '<song_id>', '<url>',
-  CAST(strftime('%s','now') AS INTEGER), 0);
+
+### Learning
+```bash
+jankenoboe create learning --data '{"song_id": "song-uuid", "level_up_path": "[1,1,1,1,1,1,1,2,3,5,7,13,19,32,52,84,135,220,355,574]"}'
 ```
 
 ### Link Show to Song
-**HTTP:**
 ```bash
-curl -X POST http://localhost:3000/rel_show_song \
-  -H "Content-Type: application/json" \
-  -d '{"show_id": "<show_id>", "song_id": "<song_id>", "media_url": "<url>"}'
+jankenoboe create rel_show_song --data '{"show_id": "show-uuid", "song_id": "song-uuid", "media_url": "https://..."}'
 ```
-**SQL:**
-```sql
-INSERT INTO rel_show_song (show_id, song_id, media_url, created_at)
-VALUES ('<show_id>', '<song_id>', '<url>', CAST(strftime('%s','now') AS INTEGER));
+
+**Output:**
+```json
+{
+  "id": "generated-uuid"
+}
 ```
+
+---
 
 ## Update Records
 
-### Reassign song to different artist
-**HTTP:**
+Only the provided fields are updated; `updated_at` is set automatically.
+
 ```bash
-curl -X PATCH http://localhost:3000/song/<song_id> \
-  -H "Content-Type: application/json" \
-  -d '{"artist_id": "<new_artist_id>"}'
-```
-**SQL:**
-```sql
-UPDATE song SET artist_id='<new_artist_id>',
-  updated_at=CAST(strftime('%s','now') AS INTEGER) WHERE id='<song_id>';
+jankenoboe update <table> <id> --data '{"field": "value"}'
 ```
 
-### Soft-delete artist (set status=1)
-**HTTP:**
+### Common update operations
+
+**Reassign song to different artist:**
 ```bash
-curl -X PATCH http://localhost:3000/artist/<id> \
-  -H "Content-Type: application/json" \
-  -d '{"status": 1}'
-```
-**SQL:**
-```sql
-UPDATE artist SET status=1, updated_at=CAST(strftime('%s','now') AS INTEGER) WHERE id='<id>';
+jankenoboe update song <song_id> --data '{"artist_id": "new-artist-id"}'
 ```
 
-## Bulk Reassign Songs
-
-**HTTP (by song IDs):**
+**Soft-delete artist (set status=1):**
 ```bash
-curl -X POST http://localhost:3000/song/bulk-reassign \
-  -H "Content-Type: application/json" \
-  -d '{"song_ids": ["<id1>","<id2>"], "new_artist_id": "<artist_id>"}'
+jankenoboe update artist <id> --data '{"status": 1}'
 ```
 
-**HTTP (by source artist):**
+**Level up a learning record:**
 ```bash
-curl -X POST http://localhost:3000/song/bulk-reassign \
-  -H "Content-Type: application/json" \
-  -d '{"from_artist_id": "<old>", "to_artist_id": "<new>"}'
+jankenoboe update learning <id> --data '{"level": 8}'
+```
+When `level` is changed, `last_level_up_at` is automatically updated to the current timestamp.
+
+**Graduate a learning record:**
+```bash
+jankenoboe update learning <id> --data '{"graduated": 1}'
 ```
 
-**SQL:**
-```sql
-UPDATE song SET artist_id='<new_artist_id>',
-  updated_at=CAST(strftime('%s','now') AS INTEGER)
-WHERE artist_id='<old_artist_id>';
+**Output:**
+```json
+{
+  "updated": true
+}
 ```
+
+---
 
 ## Delete Records
 
-**HTTP:** `DELETE /artist/<id>` or `DELETE /song/<id>` (only artist and song allowed)
+Hard delete a record from the database.
 
-**SQL:**
-```sql
-DELETE FROM <table> WHERE id='<id>';
+```bash
+jankenoboe delete <table> <id>
 ```
+
+Allowed tables: `artist`, `song`
+
+**Output:**
+```json
+{
+  "deleted": true
+}
+```
+
+---
+
+## Bulk Reassign Songs
+
+### By song IDs
+
+```bash
+jankenoboe bulk-reassign --song-ids song1,song2,song3 --new-artist-id correct-artist-id
+```
+
+### By source artist (move all songs from one artist to another)
+
+```bash
+jankenoboe bulk-reassign --from-artist-id artist-to-remove --to-artist-id artist-to-keep
+```
+
+**Output:**
+```json
+{
+  "reassigned_count": 3
+}
+```
+
+---
 
 ## Find Duplicates
 
-**HTTP:** `GET /<table>/duplicates` (artist, show, song)
-
-**SQL:**
-```sql
-SELECT LOWER(name) as lname, COUNT(*) as cnt
-FROM <table> GROUP BY lname HAVING cnt > 1;
+```bash
+jankenoboe duplicates <table>
 ```
+
+Allowed tables: `artist`, `show`, `song`
+
+**Output:**
+```json
+{
+  "duplicates": [
+    {
+      "name": "minami",
+      "records": [
+        {"id": "14b7393a-...", "name": "Minami", "song_count": 5},
+        {"id": "6136d7b3-...", "name": "Minami", "song_count": 3}
+      ]
+    }
+  ]
+}
+```
+
+---
 
 ## Typical Merge Workflow (Duplicate Artists)
 
-1. Find duplicates: `GET /artist/duplicates`
-2. Review records for each duplicate name
-3. Bulk reassign songs from duplicate → keeper: `POST /song/bulk-reassign`
-4. Soft-delete or hard-delete the duplicate artist
+1. Find duplicates: `jankenoboe duplicates artist`
+2. Review records: `jankenoboe search artist --fields id,name,name_context --term '{"name": {"value": "Minami", "match": "exact-i"}}'`
+3. List songs for each: `jankenoboe search song --fields id,name --term '{"artist_id": {"value": "<artist_id>"}}'`
+4. Bulk reassign songs from duplicate → keeper: `jankenoboe bulk-reassign --from-artist-id <dup_id> --to-artist-id <keeper_id>`
+5. Delete or soft-delete the duplicate:
+   - Soft-delete: `jankenoboe update artist <dup_id> --data '{"status": 1}'`
+   - Hard-delete: `jankenoboe delete artist <dup_id>`
