@@ -123,7 +123,9 @@ jankenoboe search rel_show_song --fields show_id,song_id,media_url --term '{"sho
 
 ##### Create Play History
 
-Only after artist, show, song all exist AND show–song are linked:
+> ⚠️ Do NOT check for duplicates — always create a new play_history record. Duplicate play history is acceptable (same song played multiple times).
+
+After artist, show, song exist AND show–song are linked:
 
 ```bash
 jankenoboe create play_history --data '{"show_id": "<show-id>", "song_id": "<song-id>", "media_url": "<videoUrl>"}'
