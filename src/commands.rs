@@ -6,6 +6,7 @@ use crate::easing::{MAX_LEVEL, generate_level_up_path_json};
 use crate::encoding::url_decode;
 use crate::error::AppError;
 use crate::models;
+use crate::table_config;
 
 /// SQL WHERE clause for finding due-for-review learning records.
 /// Shared by learning-due and learning-song-review.
@@ -46,17 +47,9 @@ pub fn cmd_get(
             "query": "SELECT ~[fields] FROM #[table] WHERE id=@id",
             "returns": "~[fields]",
             "args": {
-                "table": {"enum": ["artist", "show", "song", "play_history", "learning"]},
+                "table": {"enum": table_config::build_table_enum(models::GET_TABLES)},
                 "fields": {
-                    "enumif": {
-                        "table": {
-                            "artist": ["id", "name", "name_context", "created_at", "updated_at", "status"],
-                            "show": ["id", "name", "name_romaji", "vintage", "s_type", "created_at", "updated_at", "status"],
-                            "song": ["id", "name", "name_context", "artist_id", "created_at", "updated_at", "status"],
-                            "play_history": ["id", "show_id", "song_id", "created_at", "media_url", "status"],
-                            "learning": ["id", "song_id", "level", "created_at", "updated_at", "last_level_up_at", "level_up_path", "graduated"]
-                        }
-                    }
+                    "enumif": table_config::build_selectable_enumif(models::GET_TABLES)
                 }
             }
         }
@@ -72,7 +65,7 @@ pub fn cmd_get(
     });
 
     let result = jankensqlhub::query_run_sqlite(conn, &queries, "read_by_id", &params)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(json!({"results": result.data}))
 }
@@ -92,27 +85,21 @@ pub fn cmd_search(
     if fields.is_empty() {
         return Err(AppError::InvalidParameter("fields cannot be empty".into()));
     }
-    let allowed_fields = models::search_fields(table)?;
-    models::validate_fields(&fields, allowed_fields)?;
 
     let term: Map<String, Value> = serde_json::from_str(term_json)?;
     if term.is_empty() {
         return Err(AppError::InvalidParameter("term cannot be empty".into()));
     }
 
-    let allowed_columns = models::search_columns(table)?;
-
-    // Build WHERE clause and collect parameter values
+    // Parse term conditions: build WHERE parts, col args, value args
+    let searchable_enumif = table_config::build_searchable_enumif(models::SEARCH_TABLES);
     let mut where_parts: Vec<String> = Vec::new();
-    let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    let mut col_args = serde_json::Map::new();
+    let mut col_values = serde_json::Map::new();
+    let mut val_args = serde_json::Map::new();
+    let mut val_values = serde_json::Map::new();
 
     for (col, cond) in &term {
-        if !allowed_columns.contains(&col.as_str()) {
-            return Err(AppError::InvalidParameter(format!(
-                "Invalid search column: {col}. Allowed for {table}: {}",
-                allowed_columns.join(", ")
-            )));
-        }
         let cond_obj = cond.as_object().ok_or_else(|| {
             AppError::InvalidParameter(format!("Term condition for '{col}' must be an object"))
         })?;
@@ -141,56 +128,86 @@ pub fn cmd_search(
             )));
         }
 
-        match match_mode {
+        let col_key = format!("col_{col}");
+        let val_key = format!("val_{col}");
+
+        // Column is a #[col_X] identifier validated by shared searchable enumif
+        col_args.insert(col_key.clone(), json!({"enumif": searchable_enumif}));
+        col_values.insert(col_key.clone(), json!(col));
+
+        let prepared_value = match match_mode {
             "exact" => {
-                where_parts.push(format!("\"{col}\" = ?"));
-                param_values.push(Box::new(value.clone()));
+                where_parts.push(format!("#[{col_key}]=@{val_key}"));
+                value
             }
             "exact-i" => {
-                where_parts.push(format!("LOWER(\"{col}\") = LOWER(?)"));
-                param_values.push(Box::new(value.clone()));
+                where_parts.push(format!("LOWER(#[{col_key}])=LOWER(@{val_key})"));
+                value
             }
             "starts-with" => {
-                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(?)"));
-                param_values.push(Box::new(format!("{value}%")));
+                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                format!("{value}%")
             }
             "ends-with" => {
-                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(?)"));
-                param_values.push(Box::new(format!("%{value}")));
+                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                format!("%{value}")
             }
             "contains" => {
-                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(?)"));
-                param_values.push(Box::new(format!("%{value}%")));
+                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                format!("%{value}%")
             }
             _ => unreachable!(),
-        }
+        };
+
+        val_args.insert(val_key.clone(), json!({}));
+        val_values.insert(val_key, json!(prepared_value));
     }
 
-    let fields_sql = fields
-        .iter()
-        .map(|f| format!("\"{f}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
     let where_sql = where_parts.join(" AND ");
-    let sql = format!("SELECT {fields_sql} FROM \"{table}\" WHERE {where_sql}");
 
-    let params_refs: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(params_refs.as_slice(), |row| {
-        let mut obj = serde_json::Map::new();
-        for (i, field) in fields.iter().enumerate() {
-            let val = row_value_at(row, i);
-            obj.insert(field.clone(), val);
+    // Build args: table + fields + per-column + per-value
+    let mut args = json!({
+        "table": {"enum": table_config::build_table_enum(models::SEARCH_TABLES)},
+        "fields": {
+            "enumif": table_config::build_selectable_enumif(models::SEARCH_TABLES)
         }
-        Ok(Value::Object(obj))
-    })?;
-
-    let mut results = Vec::new();
-    for r in rows {
-        results.push(r?);
+    });
+    let args_map = args.as_object_mut().unwrap();
+    for (k, v) in col_args {
+        args_map.insert(k, v);
+    }
+    for (k, v) in val_args {
+        args_map.insert(k, v);
     }
 
-    Ok(json!({"results": results}))
+    let query_json = json!({
+        "search": {
+            "query": format!("SELECT ~[fields] FROM #[table] WHERE {where_sql}"),
+            "returns": "~[fields]",
+            "args": args
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    // Build params: table + fields + col values + search values
+    let mut params = json!({
+        "table": table,
+        "fields": fields,
+    });
+    let params_map = params.as_object_mut().unwrap();
+    for (k, v) in col_values {
+        params_map.insert(k, v);
+    }
+    for (k, v) in val_values {
+        params_map.insert(k, v);
+    }
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "search", &params)
+        .map_err(AppError::from)?;
+
+    Ok(json!({"results": result.data}))
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +519,7 @@ pub fn cmd_delete(conn: &mut Connection, table: &str, id: &str) -> Result<Value,
     let params = json!({ "table": table, "id": id });
 
     let check = jankensqlhub::query_run_sqlite(conn, &queries, "check_exists", &params)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     if check.data.is_empty() {
         return Err(AppError::NotFound(format!(
@@ -511,7 +528,7 @@ pub fn cmd_delete(conn: &mut Connection, table: &str, id: &str) -> Result<Value,
     }
 
     jankensqlhub::query_run_sqlite(conn, &queries, "delete_by_id", &params)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(json!({"deleted": true}))
 }
@@ -729,7 +746,7 @@ pub fn cmd_bulk_reassign(
             let count_params = json!({ "song_ids": ids_json });
             let count_result =
                 jankensqlhub::query_run_sqlite(conn, &queries, "count_songs", &count_params)
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .map_err(AppError::from)?;
             let count = count_result.data[0]["cnt"].as_i64().unwrap_or(0);
 
             // Execute the reassignment
@@ -739,7 +756,7 @@ pub fn cmd_bulk_reassign(
                 "song_ids": ids_json
             });
             jankensqlhub::query_run_sqlite(conn, &queries, "reassign_by_ids", &params)
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+                .map_err(AppError::from)?;
 
             Ok(json!({"reassigned_count": count}))
         }
@@ -769,7 +786,7 @@ pub fn cmd_bulk_reassign(
             let count_params = json!({ "from_artist_id": from_id });
             let count_result =
                 jankensqlhub::query_run_sqlite(conn, &queries, "count_by_artist", &count_params)
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .map_err(AppError::from)?;
             let count = count_result.data[0]["cnt"].as_i64().unwrap_or(0);
 
             // Execute the reassignment
@@ -779,7 +796,7 @@ pub fn cmd_bulk_reassign(
                 "from_artist_id": from_id
             });
             jankensqlhub::query_run_sqlite(conn, &queries, "reassign_by_artist", &params)
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+                .map_err(AppError::from)?;
 
             Ok(json!({"reassigned_count": count}))
         }
@@ -1159,23 +1176,6 @@ pub fn cmd_learning_song_levelup_ids(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Extract a value from a rusqlite row at a given column index.
-fn row_value_at(row: &rusqlite::Row, idx: usize) -> Value {
-    // Try integer first, then text, then null
-    if let Ok(v) = row.get::<_, i64>(idx) {
-        return Value::Number(v.into());
-    }
-    if let Ok(v) = row.get::<_, f64>(idx) {
-        return serde_json::Number::from_f64(v)
-            .map(Value::Number)
-            .unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.get::<_, String>(idx) {
-        return Value::String(v);
-    }
-    Value::Null
-}
 
 /// URL-decode all string values in a JSON object map.
 /// Non-string values (numbers, booleans, nulls, arrays, objects) are left unchanged.

@@ -4,3 +4,4 @@ pub mod easing;
 pub mod encoding;
 pub mod error;
 pub mod models;
+pub mod table_config;

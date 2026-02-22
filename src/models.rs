@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::table_config;
 
 /// Valid table names for the `get` command.
 pub const GET_TABLES: &[&str] = &["artist", "show", "song", "play_history", "learning"];
@@ -34,161 +35,23 @@ pub const DELETE_TABLES: &[&str] = &["artist", "song"];
 
 /// Allowed fields per table for the `get` command (--fields).
 pub fn get_fields(table: &str) -> Result<&'static [&'static str], AppError> {
-    match table {
-        "artist" => Ok(&[
-            "id",
-            "name",
-            "name_context",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "show" => Ok(&[
-            "id",
-            "name",
-            "name_romaji",
-            "vintage",
-            "s_type",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "song" => Ok(&[
-            "id",
-            "name",
-            "name_context",
-            "artist_id",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "play_history" => Ok(&[
-            "id",
-            "show_id",
-            "song_id",
-            "created_at",
-            "media_url",
-            "status",
-        ]),
-        "learning" => Ok(&[
-            "id",
-            "song_id",
-            "level",
-            "created_at",
-            "updated_at",
-            "last_level_up_at",
-            "level_up_path",
-            "graduated",
-        ]),
-        _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for get: {table}"
-        ))),
-    }
-}
-
-/// Allowed searchable columns per table for the `search` command (--term keys).
-pub fn search_columns(table: &str) -> Result<&'static [&'static str], AppError> {
-    match table {
-        "artist" => Ok(&["name", "name_context"]),
-        "show" => Ok(&["name", "vintage"]),
-        "song" => Ok(&["name", "name_context", "artist_id"]),
-        "play_history" => Ok(&["show_id", "song_id"]),
-        "rel_show_song" => Ok(&["show_id", "song_id"]),
-        "learning" => Ok(&[
-            "song_id",
-            "level",
-            "graduated",
-            "last_level_up_at",
-            "level_up_path",
-        ]),
-        _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for search with columns: {table}"
-        ))),
-    }
-}
-
-/// Allowed fields per table for the `search` command (--fields).
-pub fn search_fields(table: &str) -> Result<&'static [&'static str], AppError> {
-    match table {
-        "artist" => Ok(&[
-            "id",
-            "name",
-            "name_context",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "show" => Ok(&[
-            "id",
-            "name",
-            "name_romaji",
-            "vintage",
-            "s_type",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "song" => Ok(&[
-            "id",
-            "name",
-            "name_context",
-            "artist_id",
-            "created_at",
-            "updated_at",
-            "status",
-        ]),
-        "play_history" => Ok(&[
-            "id",
-            "show_id",
-            "song_id",
-            "created_at",
-            "media_url",
-            "status",
-        ]),
-        "rel_show_song" => Ok(&["show_id", "song_id", "media_url", "created_at"]),
-        "learning" => Ok(&[
-            "id",
-            "song_id",
-            "level",
-            "created_at",
-            "updated_at",
-            "last_level_up_at",
-            "level_up_path",
-            "graduated",
-        ]),
-        _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for search with fields: {table}"
-        ))),
-    }
+    table_config::get(table)
+        .map(|c| c.selectable)
+        .ok_or_else(|| AppError::InvalidParameter(format!("Invalid table for get: {table}")))
 }
 
 /// Allowed data fields per table for the `create` command (--data keys).
 pub fn create_data_fields(table: &str) -> Result<&'static [&'static str], AppError> {
-    match table {
-        "artist" => Ok(&["name", "name_context"]),
-        "show" => Ok(&["name", "name_romaji", "vintage", "s_type"]),
-        "song" => Ok(&["name", "name_context", "artist_id"]),
-        "play_history" => Ok(&["show_id", "song_id", "media_url"]),
-        "learning" => Ok(&["song_id", "level_up_path"]),
-        "rel_show_song" => Ok(&["show_id", "song_id", "media_url"]),
-        _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for create: {table}"
-        ))),
-    }
+    table_config::get(table)
+        .map(|c| c.creatable)
+        .ok_or_else(|| AppError::InvalidParameter(format!("Invalid table for create: {table}")))
 }
 
 /// Allowed data fields per table for the `update` command (--data keys).
 pub fn update_data_fields(table: &str) -> Result<&'static [&'static str], AppError> {
-    match table {
-        "artist" => Ok(&["name", "name_context", "status"]),
-        "show" => Ok(&["name", "name_romaji", "vintage", "s_type", "status"]),
-        "song" => Ok(&["name", "name_context", "artist_id", "status"]),
-        "play_history" => Ok(&["show_id", "song_id", "media_url", "status"]),
-        "learning" => Ok(&["level", "graduated"]),
-        _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for update: {table}"
-        ))),
-    }
+    table_config::get(table)
+        .map(|c| c.updatable)
+        .ok_or_else(|| AppError::InvalidParameter(format!("Invalid table for update: {table}")))
 }
 
 /// Valid match modes for search term conditions.
@@ -249,22 +112,6 @@ mod tests {
     }
 
     #[test]
-    fn test_search_columns_invalid_table() {
-        assert_eq!(
-            search_columns("bad").unwrap_err().to_string(),
-            "Invalid table for search with columns: bad"
-        );
-    }
-
-    #[test]
-    fn test_search_fields_invalid_table() {
-        assert_eq!(
-            search_fields("bad").unwrap_err().to_string(),
-            "Invalid table for search with fields: bad"
-        );
-    }
-
-    #[test]
     fn test_create_data_fields_invalid_table() {
         assert_eq!(
             create_data_fields("bad").unwrap_err().to_string(),
@@ -287,36 +134,6 @@ mod tests {
         assert!(get_fields("song").unwrap().contains(&"artist_id"));
         assert!(get_fields("play_history").unwrap().contains(&"media_url"));
         assert!(get_fields("learning").unwrap().contains(&"level"));
-    }
-
-    #[test]
-    fn test_search_columns_all_tables() {
-        assert!(search_columns("artist").unwrap().contains(&"name"));
-        assert!(search_columns("show").unwrap().contains(&"vintage"));
-        assert!(search_columns("song").unwrap().contains(&"artist_id"));
-        assert!(search_columns("play_history").unwrap().contains(&"song_id"));
-        assert!(
-            search_columns("rel_show_song")
-                .unwrap()
-                .contains(&"show_id")
-        );
-    }
-
-    #[test]
-    fn test_search_fields_all_tables() {
-        assert!(search_fields("artist").unwrap().contains(&"name"));
-        assert!(search_fields("show").unwrap().contains(&"vintage"));
-        assert!(search_fields("song").unwrap().contains(&"artist_id"));
-        assert!(
-            search_fields("play_history")
-                .unwrap()
-                .contains(&"media_url")
-        );
-        assert!(
-            search_fields("rel_show_song")
-                .unwrap()
-                .contains(&"media_url")
-        );
     }
 
     #[test]

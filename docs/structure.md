@@ -9,7 +9,8 @@ src/
 ├── db.rs            # Database connection management
 ├── easing.rs        # Fibonacci-based level_up_path generation
 ├── encoding.rs      # URL percent-decoding for --term and --data values
-├── models.rs        # Input/output structures
+├── models.rs        # Input/output structures and business-layer validation
+├── table_config.rs  # Centralized per-table field configuration (single source of truth)
 ├── lib.rs           # Library root
 └── error.rs         # Error types and exit code mapping
 

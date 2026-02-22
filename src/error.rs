@@ -42,6 +42,17 @@ impl From<serde_json::Error> for AppError {
 
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {
+        // Try to extract JankenSQLHub error metadata for detailed messages
+        if let Some(janken_err) = err.downcast_ref::<jankensqlhub::JankenError>() {
+            let data = jankensqlhub::get_error_data(janken_err);
+            let param =
+                jankensqlhub::error_meta(data, jankensqlhub::M_PARAM_NAME).unwrap_or_default();
+            let got = jankensqlhub::error_meta(data, jankensqlhub::M_GOT).unwrap_or_default();
+            let info_name = jankensqlhub::get_error_info(data.code)
+                .map(|i| i.name.to_string())
+                .unwrap_or_else(|| err.to_string());
+            return AppError::Internal(format!("{info_name}: param={param}, got={got}"));
+        }
         AppError::Internal(err.to_string())
     }
 }
