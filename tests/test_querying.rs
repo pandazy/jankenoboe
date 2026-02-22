@@ -298,17 +298,30 @@ fn test_search_song_by_artist_id() {
 #[test]
 fn test_search_invalid_table() {
     let mut c = test_conn();
-    assert!(commands::cmd_search(&mut c, "learning", r#"{"name":{"value":"t"}}"#, "id").is_err());
+    let err = commands::cmd_search(&mut c, "bad_table", r#"{"name":{"value":"t"}}"#, "id")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(
+        err,
+        "Invalid table: bad_table. Allowed: artist, show, song, play_history, rel_show_song, learning"
+    );
 }
 
 #[test]
 fn test_search_invalid_column() {
     let mut c = test_conn();
+    // JankenSQLHub's enumif constraint rejects "id" as a search column for artist
+    // (only "name" and "name_context" are searchable)
+    let err = commands::cmd_search(&mut c, "artist", r#"{"id":{"value":"t"}}"#, "id,name")
+        .unwrap_err()
+        .to_string();
     assert!(
-        commands::cmd_search(&mut c, "artist", r#"{"id":{"value":"t"}}"#, "id,name")
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid search column")
+        err.contains("PARAMETER_TYPE_MISMATCH"),
+        "Expected PARAMETER_TYPE_MISMATCH error, got: {err}"
+    );
+    assert!(
+        err.contains(r#"got="id""#),
+        "Expected error to mention rejected column 'id', got: {err}"
     );
 }
 
@@ -375,7 +388,10 @@ fn test_search_term_value_not_string() {
 #[test]
 fn test_search_invalid_json() {
     let mut c = test_conn();
-    assert!(commands::cmd_search(&mut c, "artist", "not json", "id,name").is_err());
+    let err = commands::cmd_search(&mut c, "artist", "not json", "id,name")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "Invalid JSON: expected ident at line 1 column 2");
 }
 
 #[test]
@@ -592,7 +608,10 @@ fn test_duplicates_show() {
 #[test]
 fn test_duplicates_invalid_table() {
     let mut c = test_conn();
-    assert!(commands::cmd_duplicates(&mut c, "learning").is_err());
+    let err = commands::cmd_duplicates(&mut c, "learning")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "Invalid table: learning. Allowed: artist, show, song");
 }
 
 #[test]

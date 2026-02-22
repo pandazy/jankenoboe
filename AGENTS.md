@@ -49,14 +49,15 @@ cargo uninstall jankenoboe           # If installed via cargo
 
 ```
 src/
-├── main.rs       # Entry point, CLI argument parsing, subcommand dispatch
-├── commands.rs   # Subcommand implementations
-├── db.rs         # Database connection management
-├── easing.rs     # Fibonacci-based level_up_path generation
-├── encoding.rs   # URL percent-decoding for --term and --data values
-├── models.rs     # Input/output structures
-├── lib.rs        # Library root
-└── error.rs      # Error types and exit code mapping
+├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
+├── commands.rs      # Subcommand implementations
+├── db.rs            # Database connection management
+├── easing.rs        # Fibonacci-based level_up_path generation
+├── encoding.rs      # URL percent-decoding for --term and --data values
+├── models.rs        # Business-layer validation wrappers
+├── table_config.rs  # Centralized per-table field configuration (single source of truth)
+├── lib.rs           # Library root
+└── error.rs         # Error types and exit code mapping
 
 tools/
 └── url_encode.py # Python helper to URL percent-encode values for CLI args

@@ -93,7 +93,8 @@ After making changes, always execute:
 | **`db.rs`** | Database connection management | Connection setup, datasource.db initialization |
 | **`easing.rs`** | Fibonacci-based level_up_path generation | `generate_level_up_path()` |
 | **`encoding.rs`** | URL percent-decoding for --term and --data values | `url_decode()` |
-| **`models.rs`** | Input/output structures | CLI parameters, response models |
+| **`models.rs`** | Business-layer validation wrappers | Table/field validation, parse helpers |
+| **`table_config.rs`** | Centralized per-table field configuration | Single source of truth for selectable/searchable/creatable/updatable fields |
 | **`error.rs`** | Error handling and exit codes | Custom error types, exit code mapping |
 
 ## JankenSQLHub Integration
