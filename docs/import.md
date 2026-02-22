@@ -4,7 +4,7 @@
 
 This document describes the concepts and rules for importing song data from [animemusicquiz.com](https://animemusicquiz.com) exports into the Jankenoboe database.
 
-For step-by-step CLI commands, see the [importing-amq-songs skill](../skills/importing-amq-songs/SKILL.md).
+For step-by-step CLI commands, see the [importing-amq-songs skill](../.claude/skills/importing-amq-songs/SKILL.md).
 
 ## Export Format
 

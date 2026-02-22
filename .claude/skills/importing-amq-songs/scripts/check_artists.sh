@@ -1,9 +1,9 @@
 #!/bin/bash
 # Check which artists from an AMQ export already exist in the database
-# Usage: bash skills/importing-amq-songs/check_artists.sh <amq_export.json>
+# Usage: bash .claude/skills/importing-amq-songs/scripts/check_artists.sh <amq_export.json>
 
 if [ -z "$1" ]; then
-  echo "Usage: bash skills/importing-amq-songs/check_artists.sh <amq_export.json>"
+  echo "Usage: bash .claude/skills/importing-amq-songs/scripts/check_artists.sh <amq_export.json>"
   exit 1
 fi
 

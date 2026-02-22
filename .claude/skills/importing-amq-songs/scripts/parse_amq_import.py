@@ -68,7 +68,7 @@ def parse_amq_export(filepath):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python3 parse_amq_import.py <amq_export.json>")
+        print("Usage: python3 .claude/skills/importing-amq-songs/scripts/parse_amq_import.py <amq_export.json>")
         sys.exit(1)
 
     result = parse_amq_export(sys.argv[1])

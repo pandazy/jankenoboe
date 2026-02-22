@@ -1,27 +1,28 @@
-# v2.2.0 — Search refactoring with JankenSQLHub integration
+# v2.2.1 — Skills reorganized to .claude/skills/
 
 ## Changes
 
-### Centralized field configuration
-- **`table_config.rs` is now the single source of truth** for all per-table field constraints (selectable, searchable, creatable, updatable). Adding a searchable field to a table requires changing only one line.
-- **New `build_searchable_enumif()` builder** — generates JankenSQLHub `enumif` constraints for search column validation from the centralized config.
-- **`build_table_enum()` and `build_selectable_enumif()`** now used by both `cmd_get` and `cmd_search`, replacing inline hardcoded maps.
+### Skills file structure reorganized
+- **Moved all skills from `skills/` to `.claude/skills/`** — follows the [Claude Code skills convention](https://code.claude.com/docs/en/skills) for automatic discovery from nested directories.
+- **Import helper scripts moved to `scripts/` subdirectory** — `parse_amq_import.py`, `import_amq.py`, `check_artists.sh`, and `check_shows.sh` now live under `.claude/skills/importing-amq-songs/scripts/`.
+- **Updated all path references** in skill files, scripts, and documentation (`AGENTS.md`, `README.md`, `docs/import.md`, `docs/structure.md`).
 
-### Search command refactored
-- **Meaningful parameter names** — search parameters now use `col_{name}`/`val_{name}` (e.g., `col_vintage`, `val_vintage`) instead of opaque `c0`/`v0` indices, producing clearer error messages.
-- **Shared constraints** — all JankenSQLHub constraints (table enum, fields enumif, searchable enumif) are derived from `table_config` instead of duplicated inline JSON.
+### New directory layout
 
-### Improved error handling
-- **JankenSQLHub error metadata preserved** — `From<anyhow::Error>` for `AppError` now uses `downcast_ref::<JankenError>()` to extract structured error data (error name, param name, rejected value) instead of losing it with `.to_string()`.
-- **All 8 `query_run_sqlite` calls** changed from `.map_err(|e| AppError::Internal(e.to_string()))` to `.map_err(AppError::from)`, ensuring metadata flows through to error output.
-
-### Test improvements
-- **All error assertions in `test_querying.rs` now check exact messages** — zero `is_err()`/`is_ok()` calls remain. Each error test asserts specific error content (error type, rejected value, allowed values).
-- **`test_search_invalid_table`** uses a truly invalid table (`"bad_table"`) instead of `"learning"` (which is now a valid search table).
-- **`test_search_invalid_column`** asserts both `PARAMETER_TYPE_MISMATCH` and the rejected column name.
-
-### Learning table now searchable
-- `learning` table added to `SEARCH_TABLES` with searchable fields: `song_id`, `level`, `graduated`, `last_level_up_at`, `level_up_path`.
+```
+.claude/skills/
+├── querying-jankenoboe/SKILL.md
+├── learning-with-jankenoboe/SKILL.md
+├── maintaining-jankenoboe-data/SKILL.md
+├── reviewing-due-songs/SKILL.md
+└── importing-amq-songs/
+    ├── SKILL.md
+    └── scripts/
+        ├── parse_amq_import.py
+        ├── import_amq.py
+        ├── check_artists.sh
+        └── check_shows.sh
+```
 
 ## Installation
 
