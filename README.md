@@ -149,8 +149,8 @@ jankenoboe learning-batch --song-ids 3b105bd4-c437-4720-a373-660bd5d68532
 jankenoboe learning-song-review
 jankenoboe learning-song-review --output ~/reports/review.html
 
-# Level up all due songs by 1 (batch "mark as learned")
-jankenoboe learning-song-levelup-due
+# Level up specific learning records by ID (race-condition safe)
+jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
 
 # Level up a learning record
 jankenoboe update learning bb9d3b38-9c28-4d11-aecd-6d2650724b98 --data '{"level": 8}'

@@ -38,7 +38,7 @@ The CLI uses [JankenSQLHub](https://github.com/pandazy/jankensqlhub)'s `#[table]
 | `jankenoboe learning-due` | Get songs due for review |
 | `jankenoboe learning-batch` | Add one or many songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs with enriched data |
-| `jankenoboe learning-song-levelup-due` | Level up all due songs by 1 (batch "mark as learned") |
+| `jankenoboe learning-song-levelup-ids` | Level up specific learning records by their IDs |
 
 ### [Data Management](cli-data-management.md)
 
@@ -78,7 +78,7 @@ This table shows how every required operation maps to the CLI commands.
 | Level down | `jankenoboe update learning <id> --data '{"level": N}'` |
 | Graduate | `jankenoboe update learning <id> --data '{"graduated": 1}'` |
 | Generate due songs HTML report | `jankenoboe learning-song-review` |
-| Batch level up all due songs | `jankenoboe learning-song-levelup-due` |
+| Level up specific songs by ID | `jankenoboe learning-song-levelup-ids --ids ...` |
 
 ### Data Quality
 | Operation | Command |

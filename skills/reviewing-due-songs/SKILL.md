@@ -114,13 +114,18 @@ Due for Review: 13 songs
 
 ## After Review
 
-### Batch: Level up all due songs by 1
+### Batch: Level up songs from the review report (recommended)
 
-After reviewing the report, level up all due songs at once:
+After reviewing the report, use the `learning_ids` from the review output to level up exactly the songs shown in the report. This avoids race conditions where new songs become due between report generation and level-up.
 
 ```bash
-jankenoboe learning-song-levelup-due
-jankenoboe learning-song-levelup-due --limit 20
+# The review output includes learning_ids
+out=$(jankenoboe learning-song-review --output ~/review.html)
+# out: {"file":"...","count":13,"learning_ids":["id1","id2",...]}
+
+# After user confirms, level up exactly those songs
+ids=$(echo "$out" | jq -r '.learning_ids | join(",")')
+jankenoboe learning-song-levelup-ids --ids "$ids"
 ```
 
 **Output:**

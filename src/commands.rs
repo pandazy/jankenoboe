@@ -8,7 +8,7 @@ use crate::error::AppError;
 use crate::models;
 
 /// SQL WHERE clause for finding due-for-review learning records.
-/// Shared by learning-due, learning-song-review, and learning-song-levelup-due.
+/// Shared by learning-due and learning-song-review.
 const DUE_WHERE: &str = "\
     l.graduated = 0 \
     AND ( \
@@ -928,9 +928,16 @@ pub fn cmd_learning_song_review(
     std::fs::write(&abs_path, html)
         .map_err(|e| AppError::Internal(format!("Failed to write HTML file: {e}")))?;
 
+    // Collect learning IDs for use with learning-song-levelup-ids
+    let learning_ids: Vec<&str> = due_songs_raw
+        .iter()
+        .map(|(id, _, _, _, _, _)| id.as_str())
+        .collect();
+
     Ok(json!({
         "file": abs_path,
-        "count": count
+        "count": count,
+        "learning_ids": learning_ids
     }))
 }
 
@@ -1059,33 +1066,61 @@ impl SongReviewData for EnrichedSong {
 }
 
 // ---------------------------------------------------------------------------
-// learning-song-levelup-due --limit
+// learning-song-levelup-ids --ids
 // ---------------------------------------------------------------------------
 
-pub fn cmd_learning_song_levelup_due(conn: &mut Connection, limit: u32) -> Result<Value, AppError> {
-    // Get due songs (reuses shared DUE_WHERE)
-    let due_sql = format!(
-        "SELECT l.id, l.level \
-         FROM learning l \
-         JOIN song s ON l.song_id = s.id \
-         WHERE {DUE_WHERE} \
-         ORDER BY l.level DESC \
-         LIMIT ?1"
-    );
+pub fn cmd_learning_song_levelup_ids(
+    conn: &mut Connection,
+    ids_str: &str,
+) -> Result<Value, AppError> {
+    let ids: Vec<&str> = ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
 
-    let due_records: Vec<(String, i64)> = {
-        let mut stmt = conn.prepare(&due_sql)?;
-        let rows = stmt.query_map(rusqlite::params![limit], |row| {
-            let id: String = row.get(0)?;
-            let level: i64 = row.get(1)?;
-            Ok((id, level))
-        })?;
-        let mut records = Vec::new();
-        for r in rows {
-            records.push(r?);
+    if ids.is_empty() {
+        return Err(AppError::InvalidParameter("ids cannot be empty".into()));
+    }
+
+    // Fetch current level for each ID, verify they exist and are not graduated
+    let mut records: Vec<(String, i64)> = Vec::new();
+    let mut not_found_ids: Vec<String> = Vec::new();
+
+    for id in &ids {
+        let result = conn.query_row(
+            "SELECT id, level, graduated FROM learning WHERE id = ?1",
+            rusqlite::params![id],
+            |row| {
+                let id: String = row.get(0)?;
+                let level: i64 = row.get(1)?;
+                let graduated: i64 = row.get(2)?;
+                Ok((id, level, graduated))
+            },
+        );
+
+        match result {
+            Ok((id, level, graduated)) => {
+                if graduated == 1 {
+                    return Err(AppError::InvalidParameter(format!(
+                        "learning record already graduated: {id}"
+                    )));
+                }
+                records.push((id, level));
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                not_found_ids.push(id.to_string());
+            }
+            Err(e) => return Err(AppError::Internal(e.to_string())),
         }
-        records
-    };
+    }
+
+    if !not_found_ids.is_empty() {
+        return Err(AppError::NotFound(format!(
+            "learning record(s) not found: {}",
+            not_found_ids.join(", ")
+        )));
+    }
 
     let now = models::now_unix();
     let mut leveled_up_count: u64 = 0;
@@ -1093,7 +1128,7 @@ pub fn cmd_learning_song_levelup_due(conn: &mut Connection, limit: u32) -> Resul
 
     let tx = conn.transaction()?;
 
-    for (id, level) in &due_records {
+    for (id, level) in &records {
         if *level >= (MAX_LEVEL as i64 - 1) {
             // Graduate
             tx.execute(

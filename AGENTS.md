@@ -100,7 +100,7 @@ Commands are organized by category:
 | `jankenoboe learning-due` | Get songs due for review |
 | `jankenoboe learning-batch` | Add songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs |
-| `jankenoboe learning-song-levelup-due` | Level up all due songs by 1 |
+| `jankenoboe learning-song-levelup-ids` | Level up specific learning records by ID |
 
 **Data Management:**
 | Command | Description |

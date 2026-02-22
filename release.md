@@ -1,8 +1,26 @@
-# v2.0.1 — Bug Fix: Enable learning table search
+# v2.1.0 — Race-condition-safe batch level up
 
-## Bug Fixes
+## New Features
 
-- **Fixed learning table search** — The `learning` table can now be queried with the `search` command. Previously, attempting to search the learning table would fail due to a missing table configuration.
+- **`learning-song-levelup-ids`** — Level up specific learning records by their IDs. Accepts comma-separated learning UUIDs via `--ids`. This is the race-condition-safe way to level up songs after reviewing a report.
+- **`learning-song-review` now returns `learning_ids`** — The JSON output includes an array of learning record UUIDs, enabling the review→levelup workflow without race conditions.
+
+## Breaking Changes
+
+- **Removed `learning-song-levelup-due`** — This command re-queried for due songs at execution time, which could level up unreviewed songs if new songs became due between report generation and level-up. Use `learning-song-levelup-ids` with IDs from `learning-song-review` instead.
+
+## Recommended Workflow
+
+```bash
+# Step 1: Generate review report (captures learning_ids)
+out=$(jankenoboe learning-song-review --output ~/review.html)
+
+# Step 2: User reviews the HTML report in browser
+
+# Step 3: Level up exactly those songs (no race condition)
+ids=$(echo "$out" | jq -r '.learning_ids | join(",")')
+jankenoboe learning-song-levelup-ids --ids "$ids"
+```
 
 ## Installation
 

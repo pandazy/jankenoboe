@@ -380,17 +380,17 @@ fn test_learning_song_review_deduplicates_media_urls() {
     std::fs::remove_file(&output_path).ok();
 }
 
-// === LEARNING-SONG-LEVELUP-DUE ===
+// === LEARNING-SONG-LEVELUP-IDS ===
 
 #[test]
-fn test_learning_song_levelup_due_basic() {
+fn test_learning_song_levelup_ids_basic() {
     let mut c = test_conn();
     let aid = insert_artist(&mut c, "A");
     let sid = insert_song(&mut c, "S", &aid);
     let past = jankenoboe::models::now_unix() - 400;
     let lid = insert_learning_raw(&mut c, &sid, 0, past, past, 0, 0);
 
-    let r = commands::cmd_learning_song_levelup_due(&mut c, 500).unwrap();
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &lid).unwrap();
     assert_eq!(r["leveled_up_count"], 1);
     assert_eq!(r["graduated_count"], 0);
     assert_eq!(r["total_processed"], 1);
@@ -402,46 +402,57 @@ fn test_learning_song_levelup_due_basic() {
 }
 
 #[test]
-fn test_learning_song_levelup_due_graduates_max_level() {
+fn test_learning_song_levelup_ids_multiple() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "S1", &aid);
+    let s2 = insert_song(&mut c, "S2", &aid);
+    let past = jankenoboe::models::now_unix() - 400;
+    let lid1 = insert_learning_raw(&mut c, &s1, 3, past, past, past, 0);
+    let lid2 = insert_learning_raw(&mut c, &s2, 5, past, past, past, 0);
+
+    let ids = format!("{lid1},{lid2}");
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &ids).unwrap();
+    assert_eq!(r["leveled_up_count"], 2);
+    assert_eq!(r["graduated_count"], 0);
+    assert_eq!(r["total_processed"], 2);
+
+    let g1 = commands::cmd_get(&mut c, "learning", &lid1, "level").unwrap();
+    assert_eq!(g1["results"][0]["level"], 4);
+
+    let g2 = commands::cmd_get(&mut c, "learning", &lid2, "level").unwrap();
+    assert_eq!(g2["results"][0]["level"], 6);
+}
+
+#[test]
+fn test_learning_song_levelup_ids_graduates_max_level() {
     let mut c = test_conn();
     let aid = insert_artist(&mut c, "A");
     let sid = insert_song(&mut c, "S", &aid);
-    // Level 19 (max), last_level_up_at far in the past (>574 days)
-    let past = jankenoboe::models::now_unix() - (575 * 86400);
+    let past = jankenoboe::models::now_unix() - 400;
     let lid = insert_learning_raw(&mut c, &sid, 19, past, past, past, 0);
 
-    let r = commands::cmd_learning_song_levelup_due(&mut c, 500).unwrap();
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &lid).unwrap();
     assert_eq!(r["leveled_up_count"], 0);
     assert_eq!(r["graduated_count"], 1);
     assert_eq!(r["total_processed"], 1);
 
-    // Verify graduated
     let g = commands::cmd_get(&mut c, "learning", &lid, "graduated").unwrap();
     assert_eq!(g["results"][0]["graduated"], 1);
 }
 
 #[test]
-fn test_learning_song_levelup_due_no_due_songs() {
-    let mut c = test_conn();
-    let r = commands::cmd_learning_song_levelup_due(&mut c, 500).unwrap();
-    assert_eq!(r["leveled_up_count"], 0);
-    assert_eq!(r["graduated_count"], 0);
-    assert_eq!(r["total_processed"], 0);
-}
-
-#[test]
-fn test_learning_song_levelup_due_mixed() {
+fn test_learning_song_levelup_ids_mixed_levelup_and_graduate() {
     let mut c = test_conn();
     let aid = insert_artist(&mut c, "A");
     let s1 = insert_song(&mut c, "S1", &aid);
     let s2 = insert_song(&mut c, "S2", &aid);
-    let past_short = jankenoboe::models::now_unix() - 400;
-    let past_long = jankenoboe::models::now_unix() - (575 * 86400);
+    let past = jankenoboe::models::now_unix() - 400;
+    let lid1 = insert_learning_raw(&mut c, &s1, 0, past, past, 0, 0);
+    let lid2 = insert_learning_raw(&mut c, &s2, 19, past, past, past, 0);
 
-    let lid1 = insert_learning_raw(&mut c, &s1, 0, past_short, past_short, 0, 0);
-    let lid2 = insert_learning_raw(&mut c, &s2, 19, past_long, past_long, past_long, 0);
-
-    let r = commands::cmd_learning_song_levelup_due(&mut c, 500).unwrap();
+    let ids = format!("{lid1},{lid2}");
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &ids).unwrap();
     assert_eq!(r["leveled_up_count"], 1);
     assert_eq!(r["graduated_count"], 1);
     assert_eq!(r["total_processed"], 2);
@@ -451,6 +462,89 @@ fn test_learning_song_levelup_due_mixed() {
 
     let g2 = commands::cmd_get(&mut c, "learning", &lid2, "graduated").unwrap();
     assert_eq!(g2["results"][0]["graduated"], 1);
+}
+
+#[test]
+fn test_learning_song_levelup_ids_not_found() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, "nonexistent-id");
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("not found"));
+}
+
+#[test]
+fn test_learning_song_levelup_ids_empty() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, "");
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("ids cannot be empty"));
+}
+
+#[test]
+fn test_learning_song_levelup_ids_already_graduated() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 19, now, now, now, 1); // already graduated
+
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &lid);
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("already graduated"));
+}
+
+#[test]
+fn test_learning_song_levelup_ids_does_not_require_due() {
+    // Unlike levelup-due, levelup-ids should work regardless of due status
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    // Level 5, recently updated (NOT due)
+    let lid = insert_learning_raw(&mut c, &sid, 5, now, now, now, 0);
+
+    let r = commands::cmd_learning_song_levelup_ids(&mut c, &lid).unwrap();
+    assert_eq!(r["leveled_up_count"], 1);
+    assert_eq!(r["total_processed"], 1);
+
+    let g = commands::cmd_get(&mut c, "learning", &lid, "level").unwrap();
+    assert_eq!(g["results"][0]["level"], 6);
+}
+
+// === LEARNING-SONG-REVIEW returns learning_ids ===
+
+#[test]
+fn test_learning_song_review_returns_learning_ids() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let past = jankenoboe::models::now_unix() - 400;
+    let lid = insert_learning_raw(&mut c, &sid, 0, past, past, 0, 0);
+
+    let output_path = std::env::temp_dir().join("test_review_ids.html");
+    let output_str = output_path.to_string_lossy().to_string();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+
+    assert_eq!(r["count"], 1);
+    let learning_ids = r["learning_ids"].as_array().unwrap();
+    assert_eq!(learning_ids.len(), 1);
+    assert_eq!(learning_ids[0], lid);
+
+    std::fs::remove_file(&output_path).ok();
+}
+
+#[test]
+fn test_learning_song_review_empty_learning_ids() {
+    let mut c = test_conn();
+    let output_path = std::env::temp_dir().join("test_review_empty_ids.html");
+    let output_str = output_path.to_string_lossy().to_string();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+
+    assert_eq!(r["count"], 0);
+    let learning_ids = r["learning_ids"].as_array().unwrap();
+    assert_eq!(learning_ids.len(), 0);
+
+    std::fs::remove_file(&output_path).ok();
 }
 
 // === SQL INJECTION PREVENTION ===
