@@ -117,7 +117,7 @@ The `level_up_path` is stored per song, allowing for different memory curves. Wh
 
 ### Default Path Generation (Fibonacci Easing)
 
-When songs are added to learning via `POST /learning/batch`, the server generates the `level_up_path` automatically using a Fibonacci-based easing algorithm:
+When songs are added to learning via `jankenoboe learning-batch`, the CLI generates the `level_up_path` automatically using a Fibonacci-based easing algorithm:
 
 1. **Fibonacci sequence**: `fibo(0)=0, fibo(1)=1, fibo(n)=fibo(n-1)+fibo(n-2)`
 2. **Shrink**: Scale down each value with `shrink(x) = x * 2 / 9` (integer division)
@@ -131,11 +131,11 @@ This produces a smooth ramp from short intervals (1 day) to long intervals (574 
 [1, 1, 1, 1, 1, 1, 1, 2, 3, 5, 7, 13, 19, 32, 52, 84, 135, 220, 355, 574]
 ```
 
-See the [API Reference — Level-Up Path Generation](api.md#level-up-path-generation) for the full breakdown table.
+See the [CLI Reference — Level-Up Path Generation](cli-learning.md#level-up-path-generation) for the full breakdown table.
 
 ## Adding Songs to Learning
 
-Songs are added to the learning system via `POST /learning/batch` with one or more `song_ids`. Each new learning record is initialized with:
+Songs are added to the learning system via `jankenoboe learning-batch --song-ids ...`. Each new learning record is initialized with:
 
 | Field | Value |
 |-------|-------|
@@ -154,4 +154,4 @@ When adding songs to learning, the system checks each song's existing learning s
 2. **Active (non-graduated) record exists** (`graduated = 0`) → **skip** the song. This prevents duplicate active learning records for the same song.
 3. **Only graduated records exist** (`graduated = 1`) → **do not auto-add**. Instead, return the song in `already_graduated_song_ids` so the caller can decide whether to re-learn it. If the caller explicitly confirms (via `relearn_song_ids`), a new learning record is created starting from stored level `7` (display level 8) by default, since the song was previously memorized and doesn't need the early warm-up levels. The start level is customizable via `relearn_start_level`. The old graduated record is preserved as history.
 
-This two-step confirmation for graduated songs prevents accidental re-learning of songs that were intentionally completed. See the [API Reference — Skip and Re-learn Rules](api.md#skip-and-re-learn-rules) for the full request/response flow.
+This two-step confirmation for graduated songs prevents accidental re-learning of songs that were intentionally completed. See the [CLI Reference — Skip and Re-learn Rules](cli-learning.md#skip-and-re-learn-rules) for the full request/response flow.

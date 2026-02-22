@@ -1,24 +1,16 @@
 ---
 name: querying-jankenoboe
-description: Search and read anime song learning data from a Jankenoboe SQLite database. Finds artists, shows, songs, learning records, and play history. Use when the user asks to look up, search, find, or list anime songs, artists, shows, or learning progress. Supports both HTTP API (localhost:3000) and direct SQLite queries.
+description: Search and read anime song learning data from a Jankenoboe SQLite database. Finds artists, shows, songs, learning records, and play history. Use when the user asks to look up, search, find, or list anime songs, artists, shows, or learning progress.
 ---
 
 ## Setup
 
-**Always ask the user for the SQLite database file path first** (e.g., `datasource.db`). Store it for the session.
-
-**Determine access mode:**
-1. **HTTP mode**: Try `curl -s http://localhost:3000/artist/search?fields=id,name&name=test`. If it responds, use HTTP.
-2. **SQL mode**: If the server is unreachable, use `sqlite3 <db_path>` directly.
-
-**⚠️ Shell safety for SQL mode:** Many SQL queries contain `%s` (in `strftime`) and `$[` (in `json_extract`) which zsh interprets as format specifiers and arithmetic expansion. **Always write SQL to a temp file and pipe it to sqlite3** instead of passing inline:
+The `jankenoboe` CLI must be installed. Set the `JANKENOBOE_DB` environment variable to the SQLite database path:
 ```bash
-cat > /tmp/query.sql << 'EOSQL'
-SELECT CAST(strftime('%s','now') AS INTEGER);
-EOSQL
-sqlite3 <db_path> < /tmp/query.sql
+export JANKENOBOE_DB=~/db/datasource.db
 ```
-The `<< 'EOSQL'` (quoted heredoc) prevents all shell interpolation inside the SQL.
+
+**Always ask the user for the database path first** if `JANKENOBOE_DB` is not already set.
 
 ## Tables
 
@@ -31,72 +23,169 @@ The `<< 'EOSQL'` (quoted heredoc) prevents all shell interpolation inside the SQ
 | play_history | id, show_id, song_id, media_url |
 | rel_show_song | show_id, song_id, media_url |
 
-## Read by ID
+---
 
-**HTTP:**
+## Get by ID
+
+Retrieve a single record by its UUID.
+
 ```bash
-curl "http://localhost:3000/<table>/<id>?fields=<comma-separated-fields>"
+jankenoboe get <table> <id> --fields <comma-separated-fields>
 ```
 
-**SQL:**
+**Example:**
 ```bash
-sqlite3 <db_path> "SELECT <fields> FROM <table> WHERE id='<id>';"
+jankenoboe get song 3b105bd4-c437-4720-a373-660bd5d68532 --fields id,name,artist_id
 ```
 
-## Search
+**Output:**
+```json
+{
+  "results": [
+    {
+      "id": "3b105bd4-c437-4720-a373-660bd5d68532",
+      "name": "Fuwa Fuwa Time (5-nin Ver.)",
+      "artist_id": "2196b222-ed04-4260-90c8-d18382bf8900"
+    }
+  ]
+}
+```
 
-### Artist by name
-**HTTP:** `GET /artist/search?fields=id,name&name=<name>`
-**SQL:** `SELECT <fields> FROM artist WHERE LOWER(name) = LOWER('<name>');`
+### Available fields per table
 
-### Show by name + vintage
-**HTTP:** `GET /show/search?fields=id,name,vintage&name=<name>&vintage=<vintage>`
-**SQL:** `SELECT <fields> FROM show WHERE LOWER(name) = LOWER('<name>') AND vintage='<vintage>';`
+| Table | Fields |
+|-------|--------|
+| artist | id, name, name_context, created_at, updated_at, status |
+| show | id, name, name_romaji, vintage, s_type, created_at, updated_at, status |
+| song | id, name, name_context, artist_id, created_at, updated_at, status |
+| play_history | id, show_id, song_id, created_at, media_url, status |
+| learning | id, song_id, level, created_at, updated_at, last_level_up_at, level_up_path, graduated |
 
-### Song by name + artist
-**HTTP:** `GET /song/search?fields=id,name,artist_id&name=<name>&artist_id=<artist_id>`
-**SQL:** `SELECT <fields> FROM song WHERE LOWER(name) = LOWER('<name>') AND artist_id='<artist_id>';`
+---
 
-### Songs by artist
-**HTTP:** `GET /song/search?fields=id,name&artist_id=<artist_id>`
-**SQL:** `SELECT <fields> FROM song WHERE artist_id='<artist_id>';`
+## Search (--term)
+
+All searches use the `--term` JSON parameter. Each key is a column name with `{value, match}`. Multiple keys are combined with AND. The `match` field defaults to `exact` (case-sensitive) when omitted.
+
+**Match modes:** `exact` (default, case-sensitive), `exact-i` (case-insensitive), `starts-with`, `ends-with`, `contains`
+
+**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing quotes, spaces, or other shell-problematic characters (e.g., `it%27s` → `it's`, `%20` → space). Plain text without `%` works unchanged.
+
+### Exact searches
+
+```bash
+# Find artist by name (case-insensitive)
+jankenoboe search artist --fields id,name --term '{"name": {"value": "minami", "match": "exact-i"}}'
+
+# Find show by name + vintage
+jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "K-On!", "match": "exact-i"}, "vintage": {"value": "Spring 2009"}}'
+
+# Find song by name + artist_id
+jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "snowspring", "match": "exact-i"}, "artist_id": {"value": "abc123"}}'
+
+# List all songs by artist
+jankenoboe search song --fields id,name,artist_id --term '{"artist_id": {"value": "abc123"}}'
+
+# Check if show and song are linked
+jankenoboe search rel_show_song --fields show_id,song_id,media_url --term '{"show_id": {"value": "<show-uuid>"}, "song_id": {"value": "<song-uuid>"}}'
+
+# Find play history records by song
+jankenoboe search play_history --fields id,show_id,song_id,media_url --term '{"song_id": {"value": "<song-uuid>"}}'
+
+# Find play history records by show and song
+jankenoboe search play_history --fields id,media_url --term '{"show_id": {"value": "<show-uuid>"}, "song_id": {"value": "<song-uuid>"}}'
+```
+
+### Fuzzy searches
+
+```bash
+# Artists whose name starts with "min"
+jankenoboe search artist --fields id,name --term '{"name": {"value": "min", "match": "starts-with"}}'
+
+# Shows from 2024 with "sign" in the name (AND)
+jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "sign", "match": "contains"}, "vintage": {"value": "2024", "match": "ends-with"}}'
+
+# Songs whose name contains "love"
+jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "love", "match": "contains"}}'
+```
+
+**Searchable columns per table:**
+
+| Table | Columns |
+|-------|---------|
+| artist | name, name_context |
+| show | name, vintage |
+| song | name, name_context, artist_id |
+| play_history | show_id, song_id |
+| rel_show_song | show_id, song_id |
+
+**Output (all search commands):**
+```json
+{
+  "results": [
+    {"id": "...", "name": "...", ...}
+  ]
+}
+```
+
+---
 
 ## Learning Due for Review
 
-**HTTP:** `GET /learning/due?limit=100`
-
-**SQL:**
-```sql
-SELECT l.id, l.song_id, s.name as song_name, l.level,
-  json_extract(l.level_up_path, '$[' || l.level || ']') as wait_days
-FROM learning l
-JOIN song s ON l.song_id = s.id
-WHERE l.graduated = 0
-  AND (
-    (l.last_level_up_at > 0 AND l.level = 0
-     AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.last_level_up_at + 300))
-    OR (l.last_level_up_at = 0 AND l.level = 0
-     AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.updated_at + 300))
-    OR (l.level > 0
-     AND (json_extract(l.level_up_path, '$[' || l.level || ']') * 86400 + l.last_level_up_at)
-         <= CAST(strftime('%s', 'now') AS INTEGER))
-  )
-ORDER BY l.level DESC;
+```bash
+jankenoboe learning-due
+jankenoboe learning-due --limit 20
 ```
+
+**Output:**
+```json
+{
+  "count": 13,
+  "results": [
+    {
+      "id": "...",
+      "song_id": "...",
+      "song_name": "1-nichi wa 25-jikan.",
+      "level": 16,
+      "wait_days": 135
+    }
+  ]
+}
+```
+
+---
 
 ## Find Duplicates
 
-**HTTP:** `GET /<table>/duplicates` (allowed: artist, show, song)
-
-**SQL (example for artist):**
-```sql
-SELECT LOWER(name) as lname, COUNT(*) as cnt
-FROM artist GROUP BY lname HAVING cnt > 1;
+```bash
+jankenoboe duplicates <table>
 ```
-Then query each duplicate name for full records.
+
+Allowed tables: `artist`, `show`, `song`
+
+**Output:**
+```json
+{
+  "duplicates": [
+    {
+      "name": "minami",
+      "records": [
+        {"id": "14b7393a-...", "name": "Minami", "song_count": 5},
+        {"id": "6136d7b3-...", "name": "Minami", "song_count": 3}
+      ]
+    }
+  ]
+}
+```
+
+Duplicates may be legitimate (e.g., two real artists with the same name). This command surfaces them for human review.
+
+---
 
 ## Response Format
 
-HTTP responses use: `{"results": [...]}` for reads/searches, `{"count": N, "results": [...]}` for due items, `{"duplicates": [...]}` for duplicates.
-
-SQL mode: format results as readable tables or JSON for the user.
+All CLI output is JSON to stdout:
+- Reads/searches: `{"results": [...]}`
+- Due items: `{"count": N, "results": [...]}`
+- Duplicates: `{"duplicates": [...]}`
+- Errors: `{"error": "..."}` on stderr, exit code 1

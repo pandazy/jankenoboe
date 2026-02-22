@@ -1,108 +1,151 @@
 ---
 name: reviewing-due-songs
-description: Display anime songs that are due for spaced repetition review as a formatted list. Each entry shows the show name, song name, and media URLs from play history. Use when the user wants to see their due review list, practice queue, or review songs with playback links.
+description: Display anime songs that are due for spaced repetition review as a formatted list or HTML report. Each entry shows the song name, artist, level, wait days, show names, and media URLs. Use when the user wants to see their due review list, practice queue, review songs with playback links, or mark all due songs as learned.
 ---
 
 ## Setup
 
-**Always ask the user for the SQLite database file path first** (e.g., `datasource.db`). Store it for the session.
-
-**⚠️ Shell safety for SQL mode:** Many SQL queries contain `%s` (in `strftime`) and `$[` (in `json_extract`) which zsh interprets as format specifiers and arithmetic expansion. **Always write SQL to a temp file and pipe it to sqlite3** instead of passing inline:
+The `jankenoboe` CLI must be installed. Set the `JANKENOBOE_DB` environment variable to the SQLite database path:
 ```bash
-cat > /tmp/query.sql << 'EOSQL'
-SELECT CAST(strftime('%s','now') AS INTEGER);
-EOSQL
-sqlite3 <db_path> < /tmp/query.sql
+export JANKENOBOE_DB=~/db/datasource.db
 ```
-The `<< 'EOSQL'` (quoted heredoc) prevents all shell interpolation inside the SQL.
+
+**Always ask the user for the database path first** if `JANKENOBOE_DB` is not already set.
+
+---
 
 ## Workflow
 
-### Step 1: Query due songs with show names
+### Option A: Generate HTML Report (recommended)
 
-```sql
-SELECT
-  l.id as learning_id,
-  s.id as song_id,
-  s.name as song_name,
-  l.level + 1 as display_level,
-  GROUP_CONCAT(DISTINCT sh.name) as show_names
-FROM learning l
-JOIN song s ON l.song_id = s.id
-LEFT JOIN rel_show_song rss ON rss.song_id = s.id
-LEFT JOIN show sh ON sh.id = rss.show_id
-WHERE l.graduated = 0
-  AND (
-    (l.last_level_up_at > 0 AND l.level = 0
-     AND CAST(strftime('%s','now') AS INTEGER) >= l.last_level_up_at + 300)
-    OR (l.last_level_up_at = 0 AND l.level = 0
-     AND CAST(strftime('%s','now') AS INTEGER) >= l.updated_at + 300)
-    OR (l.level > 0
-     AND json_extract(l.level_up_path,'$['||l.level||']') * 86400 + l.last_level_up_at
-         <= CAST(strftime('%s','now') AS INTEGER))
-  )
-GROUP BY l.id
-ORDER BY l.level DESC;
+Generate a self-contained HTML report with enriched data for all due songs:
+
+```bash
+jankenoboe learning-song-review
+jankenoboe learning-song-review --output ~/reports/review.html
+jankenoboe learning-song-review --limit 50
 ```
 
-### Step 2: Query media URLs for each due song
-
-For each `song_id` from Step 1, query distinct media URLs from play_history:
-
-```sql
-SELECT DISTINCT ph.media_url, sh.name as show_name
-FROM play_history ph
-JOIN show sh ON ph.show_id = sh.id
-WHERE ph.song_id = '<song_id>'
-  AND ph.media_url != ''
-ORDER BY sh.name;
+**Output (stdout):**
+```json
+{
+  "file": "/path/to/learning-song-review.html",
+  "count": 13
+}
 ```
 
-**Alternative — batch query all media URLs for all due songs at once:**
+The HTML report includes:
+- Summary statistics (total count, level distribution)
+- Each song with: name, artist, level (display = stored + 1), wait days, show names, clickable media URLs
+- Client-side pagination (20 songs per page)
+- Sorted by level descending (highest level first)
+- Self-contained — no external dependencies, works offline
 
-```sql
-SELECT DISTINCT ph.song_id, ph.media_url, sh.name as show_name
-FROM play_history ph
-JOIN show sh ON ph.show_id = sh.id
-WHERE ph.song_id IN (
-  SELECT s.id
-  FROM learning l
-  JOIN song s ON l.song_id = s.id
-  WHERE l.graduated = 0
-    AND (
-      (l.last_level_up_at > 0 AND l.level = 0
-       AND CAST(strftime('%s','now') AS INTEGER) >= l.last_level_up_at + 300)
-      OR (l.last_level_up_at = 0 AND l.level = 0
-       AND CAST(strftime('%s','now') AS INTEGER) >= l.updated_at + 300)
-      OR (l.level > 0
-       AND json_extract(l.level_up_path,'$['||l.level||']') * 86400 + l.last_level_up_at
-           <= CAST(strftime('%s','now') AS INTEGER))
-    )
-)
-AND ph.media_url != ''
-ORDER BY ph.song_id, sh.name;
+Open the generated file in any browser to review.
+
+### Option B: Get due songs as JSON
+
+```bash
+jankenoboe learning-due
+jankenoboe learning-due --limit 20
 ```
 
-## Output Format
+**Output:**
+```json
+{
+  "count": 13,
+  "results": [
+    {
+      "id": "5a1af77e-...",
+      "song_id": "3b105bd4-...",
+      "song_name": "1-nichi wa 25-jikan.",
+      "level": 16,
+      "wait_days": 135
+    }
+  ]
+}
+```
 
-Present the list as:
+#### Enrich with show names and media URLs (optional)
+
+For each due song, look up its show associations and media URLs:
+
+**Get show names:**
+```bash
+jankenoboe search rel_show_song --fields show_id,song_id,media_url --term '{"song_id": {"value": "<song_id>"}}'
+```
+Then for each `show_id`:
+```bash
+jankenoboe get show <show_id> --fields id,name
+```
+
+**Get artist name:**
+```bash
+jankenoboe get song <song_id> --fields id,name,artist_id
+```
+Then:
+```bash
+jankenoboe get artist <artist_id> --fields id,name
+```
+
+### Plain text format
+
+Present each due song to the user in a readable format:
 
 ```
-1. show: <show_name>, song: <song_name> (Lv.<display_level>)
-   - <media_url_1> (<show_name_from_play_history>)
-   - <media_url_2> (<show_name_from_play_history>)
+Due for Review: 13 songs
 
-2. show: <show_name>, song: <song_name> (Lv.<display_level>)
-   - <media_url_1> (<show_name_from_play_history>)
+1. 1-nichi wa 25-jikan. (Lv.17, wait: 135 days)
+   Artist: <artist_name>
+   Shows: <show_name_1> | <show_name_2>
+
+2. snowspring (Lv.9, wait: 5 days)
+   Artist: ChoQMay
+   Shows: A Sign of Affection
 ```
 
-- If a song appears in multiple shows (via `rel_show_song`), join show names with ` | ` in the header line.
-- If no media URLs exist for a song, show `(no media URLs)` instead of the sublist.
-- Media URLs from play_history may reference different shows than the song's `rel_show_song` entries (e.g., the song was encountered in a different show context during a quiz game). Always include the show name from play_history next to each URL for clarity.
+### Formatting rules
+
+- Display level is stored level + 1 (levels are 0-indexed in the database, 1-indexed for display)
+- If a song appears in multiple shows (via `rel_show_song`), join show names with ` | `
+- Group or sort by level descending (highest level = longest-studied songs first)
+
+---
+
+## After Review
+
+### Batch: Level up all due songs by 1
+
+After reviewing the report, level up all due songs at once:
+
+```bash
+jankenoboe learning-song-levelup-due
+jankenoboe learning-song-levelup-due --limit 20
+```
+
+**Output:**
+```json
+{
+  "leveled_up_count": 11,
+  "graduated_count": 2,
+  "total_processed": 13
+}
+```
+
+Songs at the maximum level (19, displayed as 20) are automatically graduated.
+
+### Individual: Level up/down specific songs
+
+For each song the user reviews individually:
+- **Correct** → level up: `jankenoboe update learning <id> --data '{"level": <current+1>}'`
+- **Forgotten** → level down: `jankenoboe update learning <id> --data '{"level": <lower_level>}'`
+- **Level 19 + correct** → graduate: `jankenoboe update learning <id> --data '{"graduated": 1}'`
+
+---
 
 ## Notes
 
-- The due condition uses a 5-minute (300 second) warm-up for level 0 songs and day-based intervals for higher levels.
-- Levels are 0-indexed in the database but displayed as 1-indexed (level + 1).
-- Media URLs come from `play_history`, which records actual song encounters during AMQ quiz games. Each play may have a different URL clip.
-- A song may have zero, one, or many play_history entries with media URLs.
+- The due condition uses a 5-minute (300 second) warm-up for level 0 songs and day-based intervals for higher levels
+- Levels are 0-indexed in the database but displayed as 1-indexed (level + 1)
+- Media URLs come from both `rel_show_song` and `play_history`, deduplicated in the HTML report
+- The HTML report is generated by the Rust binary and written to disk — no external tools needed
