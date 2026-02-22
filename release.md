@@ -35,8 +35,9 @@ Four Claude Agent Skills enable non-technical users to interact with the databas
 Pre-built binaries for:
 - Linux x86_64
 - Linux ARM64 (aarch64)
-- macOS Intel (x86_64)
 - macOS Apple Silicon (aarch64)
+
+Note: Intel Mac users can run the Apple Silicon binary through Rosetta 2.
 
 ### Security
 
