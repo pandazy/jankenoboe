@@ -114,7 +114,7 @@ export JANKENOBOE_DB=~/db/datasource.db
 
 ### 4. Start using it
 
-Point your AI agent (e.g., Claude) to the `skills/` directory and tell it the path to your database file. The agent uses `jankenoboe` CLI commands to interact with the database. You can also use the CLI directly (see [CLI](#cli) below).
+Point your AI agent (e.g., Claude) to the `.claude/skills/` directory and tell it the path to your database file. The agent uses `jankenoboe` CLI commands to interact with the database. You can also use the CLI directly (see [CLI](#cli) below).
 
 ## CLI
 
@@ -196,15 +196,15 @@ See the full [CLI Reference](docs/cli.md) for all commands, options, and query d
 
 ## Agent Skills (Claude)
 
-The `skills/` directory contains [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for interacting with the Jankenoboe database. Each skill uses the `jankenoboe` CLI binary for validated, fast operations with JSON output.
+The `.claude/skills/` directory contains [Claude Agent Skills](https://code.claude.com/docs/en/skills) for interacting with the Jankenoboe database. Each skill uses the `jankenoboe` CLI binary for validated, fast operations with JSON output.
 
 | Skill | Description |
 |-------|-------------|
-| [querying-jankenoboe](skills/querying-jankenoboe/SKILL.md) | Search and read artists, shows, songs, learning records, due reviews, duplicates |
-| [learning-with-jankenoboe](skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: add songs, level up/down, graduate, check due reviews |
-| [maintaining-jankenoboe-data](skills/maintaining-jankenoboe-data/SKILL.md) | CRUD operations: create/update/delete records, bulk reassign, merge duplicates |
-| [reviewing-due-songs](skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
-| [importing-amq-songs](skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
+| [querying-jankenoboe](.claude/skills/querying-jankenoboe/SKILL.md) | Search and read artists, shows, songs, learning records, due reviews, duplicates |
+| [learning-with-jankenoboe](.claude/skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: add songs, level up/down, graduate, check due reviews |
+| [maintaining-jankenoboe-data](.claude/skills/maintaining-jankenoboe-data/SKILL.md) | CRUD operations: create/update/delete records, bulk reassign, merge duplicates |
+| [reviewing-due-songs](.claude/skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
+| [importing-amq-songs](.claude/skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
 
 ## Documentation
 

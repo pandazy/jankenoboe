@@ -176,15 +176,15 @@ Songs are imported from animemusicquiz.com JSON exports. The flow resolves artis
 
 ## Agent Skills (Claude)
 
-The `skills/` directory contains [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for interacting with the database via CLI commands.
+The `.claude/skills/` directory contains [Claude Agent Skills](https://code.claude.com/docs/en/skills) for interacting with the database via CLI commands.
 
 | Skill | File | Description |
 |-------|------|-------------|
-| querying-jankenoboe | [skills/querying-jankenoboe/SKILL.md](skills/querying-jankenoboe/SKILL.md) | Search/read: artists, shows, songs, learning, due reviews, duplicates |
-| learning-with-jankenoboe | [skills/learning-with-jankenoboe/SKILL.md](skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: batch add, level up/down, graduate, re-learn |
-| maintaining-jankenoboe-data | [skills/maintaining-jankenoboe-data/SKILL.md](skills/maintaining-jankenoboe-data/SKILL.md) | CRUD: create/update/delete, bulk reassign, merge duplicates |
-| reviewing-due-songs | [skills/reviewing-due-songs/SKILL.md](skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
-| importing-amq-songs | [skills/importing-amq-songs/SKILL.md](skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
+| querying-jankenoboe | [.claude/skills/querying-jankenoboe/SKILL.md](.claude/skills/querying-jankenoboe/SKILL.md) | Search/read: artists, shows, songs, learning, due reviews, duplicates |
+| learning-with-jankenoboe | [.claude/skills/learning-with-jankenoboe/SKILL.md](.claude/skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: batch add, level up/down, graduate, re-learn |
+| maintaining-jankenoboe-data | [.claude/skills/maintaining-jankenoboe-data/SKILL.md](.claude/skills/maintaining-jankenoboe-data/SKILL.md) | CRUD: create/update/delete, bulk reassign, merge duplicates |
+| reviewing-due-songs | [.claude/skills/reviewing-due-songs/SKILL.md](.claude/skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
+| importing-amq-songs | [.claude/skills/importing-amq-songs/SKILL.md](.claude/skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
 
 ## Task Management
 

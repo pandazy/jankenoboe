@@ -25,11 +25,18 @@ docs/
 ├── import.md           # AMQ song import workflow
 └── archived_tasks/     # Completed task documentation
 
-skills/
+.claude/skills/
 ├── querying-jankenoboe/SKILL.md       # Search/read: artists, shows, songs, learning, duplicates
 ├── learning-with-jankenoboe/SKILL.md  # Spaced repetition: batch add, level up/down, graduate
 ├── maintaining-jankenoboe-data/SKILL.md  # CRUD: create/update/delete, bulk reassign, merge
-└── reviewing-due-songs/SKILL.md       # Display due review songs for practice
+├── reviewing-due-songs/SKILL.md       # Display due review songs for practice
+└── importing-amq-songs/
+    ├── SKILL.md                       # AMQ song import workflow
+    └── scripts/                       # Import helper scripts
+        ├── parse_amq_import.py
+        ├── import_amq.py
+        ├── check_artists.sh
+        └── check_shows.sh
 
 templates/
 └── learning-song-review.html  # HTML template for due song review report

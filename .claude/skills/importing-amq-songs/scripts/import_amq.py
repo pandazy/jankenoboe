@@ -254,7 +254,7 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(
             "Usage: python3"
-            " skills/importing-amq-songs/import_amq.py"
+            " .claude/skills/importing-amq-songs/scripts/import_amq.py"
             " <amq_export.json>"
         )
         sys.exit(1)

@@ -37,17 +37,17 @@ AMQ exports are JSON files. Each song entry lives under `songs[].songInfo` with 
 Parse the AMQ export to see a summary of all songs, artists, and shows:
 
 ```bash
-python3 skills/importing-amq-songs/parse_amq_import.py <amq_export.json>
+python3 .claude/skills/importing-amq-songs/scripts/parse_amq_import.py <amq_export.json>
 ```
 
 Check which artists and shows already exist in the database:
 
 ```bash
 # Check artists
-bash skills/importing-amq-songs/check_artists.sh <amq_export.json>
+bash .claude/skills/importing-amq-songs/scripts/check_artists.sh <amq_export.json>
 
 # Check shows
-bash skills/importing-amq-songs/check_shows.sh <amq_export.json>
+bash .claude/skills/importing-amq-songs/scripts/check_shows.sh <amq_export.json>
 ```
 
 Both scripts dynamically extract unique artists/shows from the AMQ export JSON, check each against the database, and print a summary of found/not found counts.
@@ -61,7 +61,7 @@ Choose **one** of the following approaches:
 For batch imports where all artists and shows already exist, use the automated import script:
 
 ```bash
-python3 skills/importing-amq-songs/import_amq.py <amq_export.json>
+python3 .claude/skills/importing-amq-songs/scripts/import_amq.py <amq_export.json>
 ```
 
 This script processes all songs sequentially — resolving artists, shows, songs, creating links and play history. It requires all artists and shows to already exist in the database (use Step 1 to verify first). Songs and show-song links are created automatically if missing.
