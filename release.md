@@ -1,4 +1,4 @@
-# v1.0.1 — Bug Fix: Enable learning table search
+# v2.0.1 — Bug Fix: Enable learning table search
 
 ## Bug Fixes
 
