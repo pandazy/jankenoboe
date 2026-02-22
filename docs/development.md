@@ -166,7 +166,7 @@ git push origin v1.0.0
 ```
 
 This triggers the [release workflow](../.github/workflows/release.yml), which:
-1. Builds binaries for all 4 platform targets
+1. Builds binaries for all 3 platform targets
 2. Packages each binary as a `.tar.gz` archive
 3. Creates a GitHub Release using the contents of `release.md` as the release body, with all assets attached
 
@@ -178,13 +178,11 @@ The release workflow builds for:
 |--------|----|-------------|--------|
 | `x86_64-unknown-linux-gnu` | Linux | x86_64 | `ubuntu-latest` |
 | `aarch64-unknown-linux-gnu` | Linux | ARM64 | `ubuntu-latest` (via cross) |
-| `x86_64-apple-darwin` | macOS | Intel | `macos-13` |
 | `aarch64-apple-darwin` | macOS | Apple Silicon | `macos-latest` |
 
 The release assets are named following the pattern expected by `install.sh`:
 - `jankenoboe-linux-x86_64.tar.gz`
 - `jankenoboe-linux-aarch64.tar.gz`
-- `jankenoboe-macos-x86_64.tar.gz`
 - `jankenoboe-macos-aarch64.tar.gz`
 
 Each `.tar.gz` contains just the `jankenoboe` binary.
