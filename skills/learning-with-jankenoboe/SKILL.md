@@ -130,11 +130,39 @@ jankenoboe update learning <learning_id> --data '{"graduated": 1}'
 
 ---
 
+## Batch Level Up by IDs (Race-Condition Safe)
+
+Level up specific learning records by their IDs. Use this after generating a review report to ensure only the reviewed songs are leveled up.
+
+```bash
+jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
+```
+
+**Output:**
+```json
+{
+  "leveled_up_count": 1,
+  "graduated_count": 1,
+  "total_processed": 2
+}
+```
+
+- Does not require songs to be due — works regardless of due status
+- Songs at max level (19) are automatically graduated
+- Rejects already-graduated records with an error
+
+---
+
 ## Typical Review Workflow
 
-1. Get due songs: `jankenoboe learning-due`
-2. Present to user for review
-3. For each song:
-   - **Correct** → level up: `jankenoboe update learning <id> --data '{"level": <current+1>}'`
+1. Generate review report: `jankenoboe learning-song-review`
+   - Output includes `learning_ids` array
+2. Present report to user for review
+3. Upon confirmation, level up the reviewed songs:
+   ```bash
+   ids=$(echo "$review_output" | jq -r '.learning_ids | join(",")')
+   jankenoboe learning-song-levelup-ids --ids "$ids"
+   ```
+4. For individual corrections:
    - **Forgotten** → level down: `jankenoboe update learning <id> --data '{"level": <lower_level>}'`
    - **Level 19 + correct** → graduate: `jankenoboe update learning <id> --data '{"graduated": 1}'`

@@ -26,7 +26,7 @@ The SQLite database file lives outside the project directory (e.g., `~/db/dataso
 - `jankenoboe learning-due` - Spaced repetition due-for-review query
 - `jankenoboe learning-batch` - Batch add songs to learning
 - `jankenoboe learning-song-review` - Generate HTML report of due songs
-- `jankenoboe learning-song-levelup-due` - Level up all due songs by 1
+- `jankenoboe learning-song-levelup-ids` - Level up specific learning records by ID
 
 **Data Management:**
 - `jankenoboe create <table>` - Create records

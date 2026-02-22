@@ -591,75 +591,129 @@ fi
 
 echo ""
 
-# ---- 19. Learning song levelup-due ----
-printf "${YELLOW}--- Learning Song Levelup Due ---${NC}\n"
+# ---- 19. Learning song levelup-ids ----
+printf "${YELLOW}--- Learning Song Levelup IDs ---${NC}\n"
 reset_db
 
-# levelup-due on empty DB
-out=$(jankenoboe learning-song-levelup-due)
-ec=$?
-assert_exit_code "levelup-due empty exits 0" 0 "$ec"
-assert_json_field "levelup-due empty total" "$out" '.total_processed' "0"
+# levelup-ids with empty ids
+jankenoboe learning-song-levelup-ids --ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "levelup-ids empty exits 1" 1 "$ec"
+
+# levelup-ids with nonexistent id
+jankenoboe learning-song-levelup-ids --ids "nonexistent-id" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "levelup-ids not found exits 1" 1 "$ec"
 
 # Create artist + songs + add to learning
-a_out=$(jankenoboe create artist --data '{"name":"LevelupArtist"}')
+a_out=$(jankenoboe create artist --data '{"name":"LevelupIdsArtist"}')
 A_ID=$(echo "$a_out" | jq -r '.id')
 
-s1_out=$(jankenoboe create song --data "{\"name\":\"LevelupSong1\",\"artist_id\":\"$A_ID\"}")
+s1_out=$(jankenoboe create song --data "{\"name\":\"LevelupIdsSong1\",\"artist_id\":\"$A_ID\"}")
 S1_ID=$(echo "$s1_out" | jq -r '.id')
-s2_out=$(jankenoboe create song --data "{\"name\":\"LevelupSong2\",\"artist_id\":\"$A_ID\"}")
+s2_out=$(jankenoboe create song --data "{\"name\":\"LevelupIdsSong2\",\"artist_id\":\"$A_ID\"}")
 S2_ID=$(echo "$s2_out" | jq -r '.id')
 
 batch_out=$(jankenoboe learning-batch --song-ids "$S1_ID,$S2_ID")
 L1_ID=$(echo "$batch_out" | jq -r '.created_ids[0]')
 L2_ID=$(echo "$batch_out" | jq -r '.created_ids[1]')
 
-# Make songs due by backdating last_level_up_at and updated_at (set to epoch 0)
-# Level 0 due condition checks updated_at + 300 when last_level_up_at = 0
-sqlite3 "$DB_PATH" "UPDATE learning SET last_level_up_at = 0, updated_at = 0;"
-
-# Level up all due songs
-out=$(jankenoboe learning-song-levelup-due --limit 10)
+# Level up specific IDs (no need to be due)
+out=$(jankenoboe learning-song-levelup-ids --ids "$L1_ID,$L2_ID")
 ec=$?
-assert_exit_code "levelup-due exits 0" 0 "$ec"
-assert_json_field "levelup-due total processed" "$out" '.total_processed' "2"
-assert_json_field "levelup-due leveled_up_count" "$out" '.leveled_up_count' "2"
-assert_json_field "levelup-due graduated_count" "$out" '.graduated_count' "0"
+assert_exit_code "levelup-ids exits 0" 0 "$ec"
+assert_json_field "levelup-ids total processed" "$out" '.total_processed' "2"
+assert_json_field "levelup-ids leveled_up_count" "$out" '.leveled_up_count' "2"
+assert_json_field "levelup-ids graduated_count" "$out" '.graduated_count' "0"
 
 # Verify levels incremented
 out=$(jankenoboe get learning "$L1_ID" --fields level)
-assert_json_field "song1 level after levelup" "$out" '.results[0].level' "1"
+assert_json_field "song1 level after levelup-ids" "$out" '.results[0].level' "1"
 out=$(jankenoboe get learning "$L2_ID" --fields level)
-assert_json_field "song2 level after levelup" "$out" '.results[0].level' "1"
+assert_json_field "song2 level after levelup-ids" "$out" '.results[0].level' "1"
+
+# Level up only one of them
+out=$(jankenoboe learning-song-levelup-ids --ids "$L1_ID")
+ec=$?
+assert_exit_code "levelup-ids single exits 0" 0 "$ec"
+assert_json_field "levelup-ids single total" "$out" '.total_processed' "1"
+
+out=$(jankenoboe get learning "$L1_ID" --fields level)
+assert_json_field "song1 level after second levelup" "$out" '.results[0].level' "2"
+out=$(jankenoboe get learning "$L2_ID" --fields level)
+assert_json_field "song2 level unchanged" "$out" '.results[0].level' "1"
 
 echo ""
 
-# ---- 20. Learning song levelup-due with graduation ----
-printf "${YELLOW}--- Levelup Due with Graduation ---${NC}\n"
+# ---- 20c. Learning song levelup-ids with graduation ----
+printf "${YELLOW}--- Levelup IDs with Graduation ---${NC}\n"
 reset_db
 
-a_out=$(jankenoboe create artist --data '{"name":"GradArtist"}')
+a_out=$(jankenoboe create artist --data '{"name":"GradIdsArtist"}')
 A_ID=$(echo "$a_out" | jq -r '.id')
-s_out=$(jankenoboe create song --data "{\"name\":\"GradSong\",\"artist_id\":\"$A_ID\"}")
+s_out=$(jankenoboe create song --data "{\"name\":\"GradIdsSong\",\"artist_id\":\"$A_ID\"}")
 S_ID=$(echo "$s_out" | jq -r '.id')
 
 batch_out=$(jankenoboe learning-batch --song-ids "$S_ID")
 L_ID=$(echo "$batch_out" | jq -r '.created_ids[0]')
 
-# Set to max level (19) and backdate
+# Set to max level (19)
 jankenoboe update learning "$L_ID" --data '{"level": 19}' > /dev/null
-sqlite3 "$DB_PATH" "UPDATE learning SET last_level_up_at = 0;"
 
 # Level up should graduate
-out=$(jankenoboe learning-song-levelup-due --limit 10)
+out=$(jankenoboe learning-song-levelup-ids --ids "$L_ID")
 ec=$?
-assert_exit_code "levelup-due graduation exits 0" 0 "$ec"
-assert_json_field "levelup-due graduated 1" "$out" '.graduated_count' "1"
-assert_json_field "levelup-due total 1" "$out" '.total_processed' "1"
+assert_exit_code "levelup-ids graduation exits 0" 0 "$ec"
+assert_json_field "levelup-ids graduated 1" "$out" '.graduated_count' "1"
+assert_json_field "levelup-ids total 1" "$out" '.total_processed' "1"
 
 # Verify graduated
 out=$(jankenoboe get learning "$L_ID" --fields graduated)
-assert_json_field "song graduated after levelup" "$out" '.results[0].graduated' "1"
+assert_json_field "song graduated after levelup-ids" "$out" '.results[0].graduated' "1"
+
+# Trying to levelup-ids a graduated record should fail
+jankenoboe learning-song-levelup-ids --ids "$L_ID" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+stderr=$(cat /tmp/e2e_stderr)
+assert_exit_code "levelup-ids graduated exits 1" 1 "$ec"
+assert_output_contains "levelup-ids graduated shows error" "$stderr" "graduated"
+
+echo ""
+
+# ---- 20d. Learning song review returns learning_ids ----
+printf "${YELLOW}--- Learning Song Review learning_ids ---${NC}\n"
+reset_db
+
+# Empty review should return empty learning_ids
+out=$(jankenoboe learning-song-review --output /tmp/e2e_review_ids.html)
+ec=$?
+assert_exit_code "review empty learning_ids exits 0" 0 "$ec"
+assert_json_field "review empty learning_ids count" "$out" '.learning_ids | length' "0"
+
+# Create data and make learning due
+a_out=$(jankenoboe create artist --data '{"name":"ReviewIdsArtist"}')
+A_ID=$(echo "$a_out" | jq -r '.id')
+s_out=$(jankenoboe create song --data "{\"name\":\"ReviewIdsSong\",\"artist_id\":\"$A_ID\"}")
+S_ID=$(echo "$s_out" | jq -r '.id')
+
+batch_out=$(jankenoboe learning-batch --song-ids "$S_ID")
+L_ID=$(echo "$batch_out" | jq -r '.created_ids[0]')
+
+# Make it due by backdating
+sqlite3 "$DB_PATH" "UPDATE learning SET last_level_up_at = 0, updated_at = 0;"
+
+out=$(jankenoboe learning-song-review --output /tmp/e2e_review_ids2.html)
+ec=$?
+assert_exit_code "review with learning_ids exits 0" 0 "$ec"
+assert_json_field "review learning_ids count" "$out" '.learning_ids | length' "1"
+assert_json_field "review learning_ids matches" "$out" '.learning_ids[0]' "$L_ID"
+
+# Use the returned learning_ids to levelup
+REVIEW_IDS=$(echo "$out" | jq -r '.learning_ids | join(",")')
+out=$(jankenoboe learning-song-levelup-ids --ids "$REVIEW_IDS")
+ec=$?
+assert_exit_code "levelup from review ids exits 0" 0 "$ec"
+assert_json_field "levelup from review ids total" "$out" '.total_processed' "1"
+
+out=$(jankenoboe get learning "$L_ID" --fields level)
+assert_json_field "level after review+levelup flow" "$out" '.results[0].level' "1"
 
 echo ""
 

@@ -90,11 +90,11 @@ enum Commands {
         #[arg(long, default_value = "500")]
         limit: u32,
     },
-    /// Level up all due songs by 1
-    LearningSongLevelupDue {
-        /// Maximum number of due songs to process
-        #[arg(long, default_value = "500")]
-        limit: u32,
+    /// Level up specific learning records by their IDs
+    LearningSongLevelupIds {
+        /// Comma-separated learning UUIDs
+        #[arg(long)]
+        ids: String,
     },
     /// Reassign multiple songs to a different artist
     BulkReassign {
@@ -146,8 +146,8 @@ fn main() {
         Commands::LearningSongReview { output, limit } => {
             commands::cmd_learning_song_review(&mut conn, &output, limit)
         }
-        Commands::LearningSongLevelupDue { limit } => {
-            commands::cmd_learning_song_levelup_due(&mut conn, limit)
+        Commands::LearningSongLevelupIds { ids } => {
+            commands::cmd_learning_song_levelup_ids(&mut conn, &ids)
         }
         Commands::BulkReassign {
             song_ids,

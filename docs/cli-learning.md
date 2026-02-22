@@ -239,9 +239,15 @@ jankenoboe learning-song-review --limit 50
 ```json
 {
   "file": "/path/to/learning-song-review.html",
-  "count": 13
+  "count": 13,
+  "learning_ids": [
+    "5a1af77e-5d26-4b21-92f5-79f4d1332fef",
+    "..."
+  ]
 }
 ```
+
+- `learning_ids`: Array of learning record UUIDs included in the report. Use these with `learning-song-levelup-ids` to level up exactly the songs shown in the report, avoiding race conditions from new due songs appearing between report generation and level-up.
 
 **HTML Report Features:**
 - Summary statistics: total due songs, level distribution breakdown
@@ -252,35 +258,53 @@ jankenoboe learning-song-review --limit 50
 
 ---
 
-## jankenoboe learning-song-levelup-due
+## jankenoboe learning-song-levelup-ids
 
-Level up all songs currently due for review by 1 level each. This is the batch "mark all as learned" action — it advances each due song's level and resets the spaced repetition countdown.
-
-Songs at the maximum level (19, displayed as 20) are automatically graduated instead of leveled up.
+Level up specific learning records by their IDs. This command does **not** check whether songs are due — it levels up exactly the specified records. This is the race-condition-safe way to level up songs after reviewing a report.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--limit` | No | Maximum number of due songs to process (default: 500) |
+| `--ids` | Yes | Comma-separated learning record UUIDs |
 
 **Example:**
 ```bash
-jankenoboe learning-song-levelup-due
-jankenoboe learning-song-levelup-due --limit 20
+jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
 ```
 
 **Output:**
 ```json
 {
-  "leveled_up_count": 11,
-  "graduated_count": 2,
-  "total_processed": 13
+  "leveled_up_count": 1,
+  "graduated_count": 1,
+  "total_processed": 2
 }
 ```
 
 **Behavior:**
-- Finds all due songs using the same query as `learning-due`
-- For each song with level < 19: increments level by 1, updates `last_level_up_at` to current timestamp
-- For each song with level = 19: sets `graduated = 1`, updates `last_level_up_at` and `updated_at`
+- Validates that all specified IDs exist and are not already graduated
+- For each record with level < 19: increments level by 1, updates `last_level_up_at` and `updated_at`
+- For each record with level = 19: sets `graduated = 1`, updates `last_level_up_at` and `updated_at`
 - All updates are performed in a single transaction
-- Exit code 0 even if no songs are due (counts will be 0)
+- Does **not** require songs to be due — works regardless of due status
+
+**Error Cases:**
+| Condition | Exit Code | Output |
+|-----------|-----------|--------|
+| `--ids` is empty | 1 | `{"error": "ids cannot be empty"}` |
+| Any ID not found | 1 | `{"error": "learning record(s) not found: <ids>"}` |
+| Any ID already graduated | 1 | `{"error": "learning record already graduated: <id>"}` |
+
+**Typical workflow with `learning-song-review`:**
+
+```bash
+# Step 1: Generate review report (captures learning_ids at this moment)
+out=$(jankenoboe learning-song-review --output ~/review.html)
+# out: {"file":"...","count":13,"learning_ids":["id1","id2",...]}
+
+# Step 2: User reviews the HTML report in browser
+
+# Step 3: Level up exactly those songs (no race condition)
+ids=$(echo "$out" | jq -r '.learning_ids | join(",")')
+jankenoboe learning-song-levelup-ids --ids "$ids"
+```
