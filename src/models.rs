@@ -4,7 +4,14 @@ use crate::error::AppError;
 pub const GET_TABLES: &[&str] = &["artist", "show", "song", "play_history", "learning"];
 
 /// Valid table names for the `search` command.
-pub const SEARCH_TABLES: &[&str] = &["artist", "show", "song", "play_history", "rel_show_song"];
+pub const SEARCH_TABLES: &[&str] = &[
+    "artist",
+    "show",
+    "song",
+    "play_history",
+    "rel_show_song",
+    "learning",
+];
 
 /// Valid table names for the `duplicates` command.
 pub const DUPLICATES_TABLES: &[&str] = &["artist", "show", "song"];
@@ -87,8 +94,15 @@ pub fn search_columns(table: &str) -> Result<&'static [&'static str], AppError> 
         "song" => Ok(&["name", "name_context", "artist_id"]),
         "play_history" => Ok(&["show_id", "song_id"]),
         "rel_show_song" => Ok(&["show_id", "song_id"]),
+        "learning" => Ok(&[
+            "song_id",
+            "level",
+            "graduated",
+            "last_level_up_at",
+            "level_up_path",
+        ]),
         _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for search: {table}"
+            "Invalid table for search with columns: {table}"
         ))),
     }
 }
@@ -132,8 +146,18 @@ pub fn search_fields(table: &str) -> Result<&'static [&'static str], AppError> {
             "status",
         ]),
         "rel_show_song" => Ok(&["show_id", "song_id", "media_url", "created_at"]),
+        "learning" => Ok(&[
+            "id",
+            "song_id",
+            "level",
+            "created_at",
+            "updated_at",
+            "last_level_up_at",
+            "level_up_path",
+            "graduated",
+        ]),
         _ => Err(AppError::InvalidParameter(format!(
-            "Invalid table for search: {table}"
+            "Invalid table for search with fields: {table}"
         ))),
     }
 }
@@ -228,7 +252,7 @@ mod tests {
     fn test_search_columns_invalid_table() {
         assert_eq!(
             search_columns("bad").unwrap_err().to_string(),
-            "Invalid table for search: bad"
+            "Invalid table for search with columns: bad"
         );
     }
 
@@ -236,7 +260,7 @@ mod tests {
     fn test_search_fields_invalid_table() {
         assert_eq!(
             search_fields("bad").unwrap_err().to_string(),
-            "Invalid table for search: bad"
+            "Invalid table for search with fields: bad"
         );
     }
 
