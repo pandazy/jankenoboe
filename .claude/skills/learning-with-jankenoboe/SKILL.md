@@ -31,7 +31,11 @@ Default path: `[1,1,1,1,1,1,1,2,3,5,7,13,19,32,52,84,135,220,355,574]`
 ```bash
 jankenoboe learning-due
 jankenoboe learning-due --limit 20
+jankenoboe learning-due --offset 7200          # due within the next 2 hours
+jankenoboe learning-due --offset 120 --limit 50 # due within the next 2 minutes
 ```
+
+- `--offset`: Look-ahead in seconds. Shifts the reference time forward so you can see songs that will be due soon. Default `0` = now only.
 
 **Output:**
 ```json

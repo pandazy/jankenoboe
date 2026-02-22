@@ -8,21 +8,31 @@ use crate::error::AppError;
 use crate::models;
 use crate::table_config;
 
-/// SQL WHERE clause for finding due-for-review learning records.
-/// Shared by learning-due and learning-song-review.
-const DUE_WHERE: &str = "\
-    l.graduated = 0 \
-    AND ( \
-        (l.last_level_up_at > 0 AND l.level = 0 \
-         AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.last_level_up_at + 300)) \
-        OR \
-        (l.last_level_up_at = 0 AND l.level = 0 \
-         AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.updated_at + 300)) \
-        OR \
-        (l.level > 0 \
-         AND (json_extract(l.level_up_path, '$[' || l.level || ']') * 86400 + l.last_level_up_at) \
-             <= CAST(strftime('%s', 'now') AS INTEGER)) \
-    )";
+/// Build the SQL WHERE clause for finding due-for-review learning records.
+/// The `offset_seconds` parameter shifts the reference time forward into the future,
+/// allowing queries like "songs due in the next 2 hours" (offset_seconds = 7200).
+/// When offset_seconds is 0, the behavior is identical to comparing against "now".
+fn build_due_where(offset_seconds: u32) -> String {
+    let now_expr = if offset_seconds == 0 {
+        "CAST(strftime('%s', 'now') AS INTEGER)".to_string()
+    } else {
+        format!("(CAST(strftime('%s', 'now') AS INTEGER) + {offset_seconds})")
+    };
+    format!(
+        "l.graduated = 0 \
+         AND ( \
+             (l.last_level_up_at > 0 AND l.level = 0 \
+              AND {now_expr} >= (l.last_level_up_at + 300)) \
+             OR \
+             (l.last_level_up_at = 0 AND l.level = 0 \
+              AND {now_expr} >= (l.updated_at + 300)) \
+             OR \
+             (l.level > 0 \
+              AND (json_extract(l.level_up_path, '$[' || l.level || ']') * 86400 + l.last_level_up_at) \
+                  <= {now_expr}) \
+         )"
+    )
+}
 
 // ---------------------------------------------------------------------------
 // get <table> <id> --fields
@@ -537,13 +547,18 @@ pub fn cmd_delete(conn: &mut Connection, table: &str, id: &str) -> Result<Value,
 // learning-due --limit
 // ---------------------------------------------------------------------------
 
-pub fn cmd_learning_due(conn: &mut Connection, limit: u32) -> Result<Value, AppError> {
+pub fn cmd_learning_due(
+    conn: &mut Connection,
+    limit: u32,
+    offset_seconds: u32,
+) -> Result<Value, AppError> {
+    let due_where = build_due_where(offset_seconds);
     let sql = format!(
         "SELECT l.id, l.song_id, s.name as song_name, l.level, \
                json_extract(l.level_up_path, '$[' || l.level || ']') as wait_days \
          FROM learning l \
          JOIN song s ON l.song_id = s.id \
-         WHERE {DUE_WHERE} \
+         WHERE {due_where} \
          ORDER BY l.level DESC \
          LIMIT ?1"
     );
@@ -815,15 +830,17 @@ pub fn cmd_learning_song_review(
     conn: &mut Connection,
     output_path: &str,
     limit: u32,
+    offset_seconds: u32,
 ) -> Result<Value, AppError> {
-    // Step 1: Get due songs (reuses shared DUE_WHERE)
+    // Step 1: Get due songs (reuses shared build_due_where)
+    let due_where = build_due_where(offset_seconds);
     let due_sql = format!(
         "SELECT l.id, l.song_id, s.name as song_name, l.level, \
                json_extract(l.level_up_path, '$[' || l.level || ']') as wait_days, \
                s.artist_id \
          FROM learning l \
          JOIN song s ON l.song_id = s.id \
-         WHERE {DUE_WHERE} \
+         WHERE {due_where} \
          ORDER BY l.level DESC \
          LIMIT ?1"
     );
