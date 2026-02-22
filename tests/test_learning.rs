@@ -608,16 +608,19 @@ fn test_sql_injection_field_name() {
 }
 
 #[test]
-fn test_sql_injection_search_column() {
+fn test_sql_injection_search_term_key() {
     let mut c = test_conn();
-    assert!(
-        commands::cmd_search(
-            &mut c,
-            "artist",
-            r#"{"name; DROP TABLE artist":{"value":"x"}}"#,
-            "id"
-        )
-        .is_err()
+    let err = commands::cmd_search(
+        &mut c,
+        "artist",
+        r#"{"name; DROP TABLE artist":{"value":"x"}}"#,
+        "id",
+    )
+    .unwrap_err()
+    .to_string();
+    assert_eq!(
+        err,
+        "Invalid term key for artist: name; DROP TABLE artist. Allowed: name, name_context"
     );
 }
 

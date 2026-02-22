@@ -90,7 +90,6 @@ pub fn cmd_search(
     term_json: &str,
     fields_str: &str,
 ) -> Result<Value, AppError> {
-    models::validate_table(table, models::SEARCH_TABLES)?;
     let fields = models::parse_fields(fields_str);
     if fields.is_empty() {
         return Err(AppError::InvalidParameter("fields cannot be empty".into()));
@@ -101,15 +100,21 @@ pub fn cmd_search(
         return Err(AppError::InvalidParameter("term cannot be empty".into()));
     }
 
-    // Parse term conditions: build WHERE parts, col args, value args
-    let searchable_enumif = table_config::build_searchable_enumif(models::SEARCH_TABLES);
+    // Validate term keys against searchable fields for this table
+    let searchable = models::allowed_term_keys(table)?;
     let mut where_parts: Vec<String> = Vec::new();
-    let mut col_args = serde_json::Map::new();
-    let mut col_values = serde_json::Map::new();
     let mut val_args = serde_json::Map::new();
     let mut val_values = serde_json::Map::new();
 
     for (col, cond) in &term {
+        // Validate column name against searchable whitelist
+        if !searchable.contains(&col.as_str()) {
+            return Err(AppError::InvalidParameter(format!(
+                "Invalid term key for {table}: {col}. Allowed: {}",
+                searchable.join(", ")
+            )));
+        }
+
         let cond_obj = cond.as_object().ok_or_else(|| {
             AppError::InvalidParameter(format!("Term condition for '{col}' must be an object"))
         })?;
@@ -138,32 +143,28 @@ pub fn cmd_search(
             )));
         }
 
-        let col_key = format!("col_{col}");
         let val_key = format!("val_{col}");
 
-        // Column is a #[col_X] identifier validated by shared searchable enumif
-        col_args.insert(col_key.clone(), json!({"enumif": searchable_enumif}));
-        col_values.insert(col_key.clone(), json!(col));
-
+        // Column name is safe to embed directly — validated against searchable whitelist above
         let prepared_value = match match_mode {
             "exact" => {
-                where_parts.push(format!("#[{col_key}]=@{val_key}"));
+                where_parts.push(format!("\"{col}\"=@{val_key}"));
                 value
             }
             "exact-i" => {
-                where_parts.push(format!("LOWER(#[{col_key}])=LOWER(@{val_key})"));
+                where_parts.push(format!("LOWER(\"{col}\")=LOWER(@{val_key})"));
                 value
             }
             "starts-with" => {
-                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(@{val_key})"));
                 format!("{value}%")
             }
             "ends-with" => {
-                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(@{val_key})"));
                 format!("%{value}")
             }
             "contains" => {
-                where_parts.push(format!("LOWER(#[{col_key}]) LIKE LOWER(@{val_key})"));
+                where_parts.push(format!("LOWER(\"{col}\") LIKE LOWER(@{val_key})"));
                 format!("%{value}%")
             }
             _ => unreachable!(),
@@ -175,7 +176,7 @@ pub fn cmd_search(
 
     let where_sql = where_parts.join(" AND ");
 
-    // Build args: table + fields + per-column + per-value
+    // Build args: table + fields + per-value params
     let mut args = json!({
         "table": {"enum": table_config::build_table_enum(models::SEARCH_TABLES)},
         "fields": {
@@ -183,9 +184,6 @@ pub fn cmd_search(
         }
     });
     let args_map = args.as_object_mut().unwrap();
-    for (k, v) in col_args {
-        args_map.insert(k, v);
-    }
     for (k, v) in val_args {
         args_map.insert(k, v);
     }
@@ -201,15 +199,12 @@ pub fn cmd_search(
     let queries = QueryDefinitions::from_json(query_json)
         .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
 
-    // Build params: table + fields + col values + search values
+    // Build params: table + fields + search values
     let mut params = json!({
         "table": table,
         "fields": fields,
     });
     let params_map = params.as_object_mut().unwrap();
-    for (k, v) in col_values {
-        params_map.insert(k, v);
-    }
     for (k, v) in val_values {
         params_map.insert(k, v);
     }

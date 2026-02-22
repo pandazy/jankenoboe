@@ -1,19 +1,21 @@
-# v2.3.0 — Look-ahead offset for learning-due queries
+# v2.3.1 — Search term key validation refactor
 
 ## Changes
 
-### New `--offset` parameter for `learning-due` and `learning-song-review`
-- Added `--offset <seconds>` option that shifts the reference time forward into the future
-- Allows checking which songs will be due soon, e.g., `--offset 7200` finds songs due within the next 2 hours
-- Default is `0` (no change from previous behavior — compares against "now")
-- Works with minute-level precision, e.g., `--offset 120` for the next 2 minutes
+### Simplified search term key validation
+- `--term` keys are now validated directly in Rust against per-table `searchable` config instead of using JankenSQLHub's `enumif` constraints
+- Removed the hacky `col_{}` / `val_{}` dynamic identifier pattern from `cmd_search`
+- Removed `build_searchable_enumif` from `table_config.rs` (no longer needed)
+- `--fields` (response fields) still uses JankenSQLHub's `enumif` for validation
 
-### Examples
-```bash
-jankenoboe learning-due --offset 7200          # due within next 2 hours
-jankenoboe learning-due --offset 120 --limit 50 # due within next 2 minutes
-jankenoboe learning-song-review --offset 7200   # HTML report including near-due songs
-```
+### Improved error messages
+- Invalid term key errors now include the allowed keys: `"Invalid term key for artist: id. Allowed: name, name_context"`
+- Invalid table errors from term key validation now include allowed tables: `"Invalid table in term key validation: bad_table. Allowed: artist, show, ..."`
+
+### Code quality
+- Added `allowed_term_keys()` function in `models.rs` as a clean accessor for searchable fields
+- SQL injection test for search term keys now asserts exact error messages instead of vague `.is_err()`
+- Test names use consistent "term key" terminology
 
 ## Installation
 
