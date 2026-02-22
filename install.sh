@@ -24,6 +24,12 @@ case "$ARCH" in
   *)               echo "Error: Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
+# Validate platform combination
+if [ "$OS_TAG" = "macos" ] && [ "$ARCH_TAG" = "x86_64" ]; then
+  echo "Error: macOS x86_64 (Intel) is not supported. Only Apple Silicon (aarch64) builds are available."
+  exit 1
+fi
+
 ASSET_NAME="${BINARY_NAME}-${OS_TAG}-${ARCH_TAG}.tar.gz"
 
 # Get latest release tag
