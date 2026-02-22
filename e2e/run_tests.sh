@@ -570,6 +570,17 @@ jankenoboe create rel_show_song --data "{\"show_id\":\"$SH_ID\",\"song_id\":\"$S
 # Add to learning (level 0 is immediately due with 5-min warm-up after creation)
 jankenoboe learning-batch --song-ids "$S_ID" > /dev/null
 
+# Test --offset: song just created is NOT due without offset, but IS due with offset
+out=$(jankenoboe learning-due --limit 10)
+ec=$?
+assert_exit_code "learning-due no offset exits 0" 0 "$ec"
+assert_json_field "learning-due no offset count 0 (warm-up)" "$out" '.count' "0"
+
+out=$(jankenoboe learning-due --limit 10 --offset 400)
+ec=$?
+assert_exit_code "learning-due with offset exits 0" 0 "$ec"
+assert_json_field "learning-due with offset count 1" "$out" '.count' "1"
+
 # Wait briefly, then generate review
 # Note: Level 0 songs have a 300-second warm-up, so we manually set last_level_up_at in the past
 # by using learning-due first, and then generating the review

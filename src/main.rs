@@ -68,6 +68,9 @@ enum Commands {
         /// Maximum number of results
         #[arg(long, default_value = "100")]
         limit: u32,
+        /// Look-ahead offset in seconds (e.g., 7200 for 2 hours into the future). Default 0 = now only.
+        #[arg(long, default_value = "0")]
+        offset: u32,
     },
     /// Add songs to learning
     LearningBatch {
@@ -89,6 +92,9 @@ enum Commands {
         /// Maximum number of due songs to include
         #[arg(long, default_value = "500")]
         limit: u32,
+        /// Look-ahead offset in seconds (e.g., 7200 for 2 hours into the future). Default 0 = now only.
+        #[arg(long, default_value = "0")]
+        offset: u32,
     },
     /// Level up specific learning records by their IDs
     LearningSongLevelupIds {
@@ -132,7 +138,9 @@ fn main() {
         Commands::Create { table, data } => commands::cmd_create(&mut conn, &table, &data),
         Commands::Update { table, id, data } => commands::cmd_update(&mut conn, &table, &id, &data),
         Commands::Delete { table, id } => commands::cmd_delete(&mut conn, &table, &id),
-        Commands::LearningDue { limit } => commands::cmd_learning_due(&mut conn, limit),
+        Commands::LearningDue { limit, offset } => {
+            commands::cmd_learning_due(&mut conn, limit, offset)
+        }
         Commands::LearningBatch {
             song_ids,
             relearn_song_ids,
@@ -143,9 +151,11 @@ fn main() {
             relearn_song_ids.as_deref(),
             relearn_start_level,
         ),
-        Commands::LearningSongReview { output, limit } => {
-            commands::cmd_learning_song_review(&mut conn, &output, limit)
-        }
+        Commands::LearningSongReview {
+            output,
+            limit,
+            offset,
+        } => commands::cmd_learning_song_review(&mut conn, &output, limit, offset),
         Commands::LearningSongLevelupIds { ids } => {
             commands::cmd_learning_song_levelup_ids(&mut conn, &ids)
         }

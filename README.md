@@ -139,8 +139,9 @@ jankenoboe duplicates artist
 ### Learning (Spaced Repetition)
 
 ```bash
-# Get songs due for review
+# Get songs due for review (--offset for look-ahead in seconds)
 jankenoboe learning-due
+jankenoboe learning-due --offset 7200  # due within next 2 hours
 
 # Add songs to learning
 jankenoboe learning-batch --song-ids 3b105bd4-c437-4720-a373-660bd5d68532

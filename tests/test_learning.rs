@@ -58,7 +58,7 @@ fn test_learning_due_level0_newly_created() {
     // Level 0, last_level_up_at=0, updated_at in the past (>300s ago)
     let past = jankenoboe::models::now_unix() - 400;
     let lid = insert_learning_raw(&mut c, &sid, 0, past, past, 0, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 1);
     assert_eq!(r["results"][0]["id"], lid);
     assert_eq!(r["results"][0]["song_name"], "S");
@@ -73,7 +73,7 @@ fn test_learning_due_level0_with_last_level_up_at() {
     // Level 0, last_level_up_at set to past (>300s ago)
     let past = jankenoboe::models::now_unix() - 400;
     insert_learning_raw(&mut c, &sid, 0, past, past, past, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 1);
 }
 
@@ -85,7 +85,7 @@ fn test_learning_due_level0_not_yet_due() {
     // Level 0, updated_at = now (< 300s ago)
     let now = jankenoboe::models::now_unix();
     insert_learning_raw(&mut c, &sid, 0, now, now, 0, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 0);
 }
 
@@ -97,7 +97,7 @@ fn test_learning_due_higher_level() {
     // Level 1 with wait_days=1. last_level_up_at far in the past (>1 day ago)
     let past = jankenoboe::models::now_unix() - 90000; // >1 day
     insert_learning_raw(&mut c, &sid, 1, past, past, past, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 1);
     assert_eq!(r["results"][0]["wait_days"], 1);
 }
@@ -110,7 +110,7 @@ fn test_learning_due_higher_level_not_yet() {
     // Level 7 with wait_days=2. last_level_up_at = now (not 2 days ago yet)
     let now = jankenoboe::models::now_unix();
     insert_learning_raw(&mut c, &sid, 7, now, now, now, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 0);
 }
 
@@ -121,7 +121,7 @@ fn test_learning_due_graduated_excluded() {
     let sid = insert_song(&mut c, "S", &aid);
     let past = jankenoboe::models::now_unix() - 400;
     insert_learning_raw(&mut c, &sid, 0, past, past, 0, 1); // graduated
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 0);
 }
 
@@ -135,7 +135,7 @@ fn test_learning_due_ordered_by_level_desc() {
     let past = jankenoboe::models::now_unix() - 1200000;
     insert_learning_raw(&mut c, &s1, 3, past, past, past, 0);
     insert_learning_raw(&mut c, &s2, 10, past, past, past, 0);
-    let r = commands::cmd_learning_due(&mut c, 100).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
     assert_eq!(r["count"], 2);
     // Higher level first
     assert_eq!(r["results"][0]["level"], 10);
@@ -153,8 +153,54 @@ fn test_learning_due_limit() {
     insert_learning_raw(&mut c, &s1, 0, past, past, 0, 0);
     insert_learning_raw(&mut c, &s2, 0, past, past, 0, 0);
     insert_learning_raw(&mut c, &s3, 0, past, past, 0, 0);
-    let r = commands::cmd_learning_due(&mut c, 2).unwrap();
+    let r = commands::cmd_learning_due(&mut c, 2, 0).unwrap();
     assert_eq!(r["count"], 2);
+}
+
+// === LEARNING-DUE WITH OFFSET ===
+
+#[test]
+fn test_learning_due_offset_makes_not_yet_due_visible() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    // Level 0 created just now — not due without offset (needs 300s warm-up)
+    let now = jankenoboe::models::now_unix();
+    insert_learning_raw(&mut c, &sid, 0, now, now, 0, 0);
+    // Without offset: not due
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
+    assert_eq!(r["count"], 0);
+    // With 400s offset: now due (300s warm-up satisfied)
+    let r = commands::cmd_learning_due(&mut c, 100, 400).unwrap();
+    assert_eq!(r["count"], 1);
+}
+
+#[test]
+fn test_learning_due_offset_higher_level() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    // Level 1, wait_days=1 (86400s). last_level_up_at = now — not due yet
+    let now = jankenoboe::models::now_unix();
+    insert_learning_raw(&mut c, &sid, 1, now, now, now, 0);
+    // Without offset: not due
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
+    assert_eq!(r["count"], 0);
+    // With offset of 2 days (172800s): due
+    let r = commands::cmd_learning_due(&mut c, 100, 172800).unwrap();
+    assert_eq!(r["count"], 1);
+}
+
+#[test]
+fn test_learning_due_offset_zero_same_as_default() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let past = jankenoboe::models::now_unix() - 400;
+    insert_learning_raw(&mut c, &sid, 0, past, past, 0, 0);
+    // offset=0 should behave identically to default
+    let r = commands::cmd_learning_due(&mut c, 100, 0).unwrap();
+    assert_eq!(r["count"], 1);
 }
 
 // === LEARNING-BATCH ===
@@ -308,7 +354,7 @@ fn test_learning_song_review_generates_html() {
 
     let output_path = std::env::temp_dir().join("test_review.html");
     let output_str = output_path.to_string_lossy().to_string();
-    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500, 0).unwrap();
 
     assert_eq!(r["count"], 1);
     assert_eq!(r["file"], output_str);
@@ -329,7 +375,7 @@ fn test_learning_song_review_empty_due() {
     let mut c = test_conn();
     let output_path = std::env::temp_dir().join("test_review_empty.html");
     let output_str = output_path.to_string_lossy().to_string();
-    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500, 0).unwrap();
 
     assert_eq!(r["count"], 0);
     let html = std::fs::read_to_string(&output_path).unwrap();
@@ -368,7 +414,7 @@ fn test_learning_song_review_deduplicates_media_urls() {
 
     let output_path = std::env::temp_dir().join("test_review_dedup.html");
     let output_str = output_path.to_string_lossy().to_string();
-    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500, 0).unwrap();
     assert_eq!(r["count"], 1);
 
     let html = std::fs::read_to_string(&output_path).unwrap();
@@ -523,7 +569,7 @@ fn test_learning_song_review_returns_learning_ids() {
 
     let output_path = std::env::temp_dir().join("test_review_ids.html");
     let output_str = output_path.to_string_lossy().to_string();
-    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500, 0).unwrap();
 
     assert_eq!(r["count"], 1);
     let learning_ids = r["learning_ids"].as_array().unwrap();
@@ -538,7 +584,7 @@ fn test_learning_song_review_empty_learning_ids() {
     let mut c = test_conn();
     let output_path = std::env::temp_dir().join("test_review_empty_ids.html");
     let output_str = output_path.to_string_lossy().to_string();
-    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500).unwrap();
+    let r = commands::cmd_learning_song_review(&mut c, &output_str, 500, 0).unwrap();
 
     assert_eq!(r["count"], 0);
     let learning_ids = r["learning_ids"].as_array().unwrap();

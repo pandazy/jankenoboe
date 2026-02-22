@@ -24,6 +24,7 @@ Generate a self-contained HTML report with enriched data for all due songs:
 jankenoboe learning-song-review
 jankenoboe learning-song-review --output ~/reports/review.html
 jankenoboe learning-song-review --limit 50
+jankenoboe learning-song-review --offset 7200   # include songs due within 2 hours
 ```
 
 **Output (stdout):**
@@ -48,6 +49,7 @@ Open the generated file in any browser to review.
 ```bash
 jankenoboe learning-due
 jankenoboe learning-due --limit 20
+jankenoboe learning-due --offset 7200   # due within the next 2 hours
 ```
 
 **Output:**
@@ -150,6 +152,7 @@ For each song the user reviews individually:
 
 ## Notes
 
+- Both `learning-due` and `learning-song-review` accept `--offset <seconds>` to look ahead into the future (e.g., `--offset 7200` for 2 hours). Default `0` = now only.
 - The due condition uses a 5-minute (300 second) warm-up for level 0 songs and day-based intervals for higher levels
 - Levels are 0-indexed in the database but displayed as 1-indexed (level + 1)
 - Media URLs come from both `rel_show_song` and `play_history`, deduplicated in the HTML report

@@ -1,9 +1,19 @@
-# v2.2.2 — Import skill: skip play_history duplicate check
+# v2.3.0 — Look-ahead offset for learning-due queries
 
 ## Changes
 
-### Updated import skill documentation
-- **Skip play_history duplicate checking** — the `importing-amq-songs` skill no longer instructs agents to check for duplicate `play_history` records before importing, simplifying the import workflow.
+### New `--offset` parameter for `learning-due` and `learning-song-review`
+- Added `--offset <seconds>` option that shifts the reference time forward into the future
+- Allows checking which songs will be due soon, e.g., `--offset 7200` finds songs due within the next 2 hours
+- Default is `0` (no change from previous behavior — compares against "now")
+- Works with minute-level precision, e.g., `--offset 120` for the next 2 minutes
+
+### Examples
+```bash
+jankenoboe learning-due --offset 7200          # due within next 2 hours
+jankenoboe learning-due --offset 120 --limit 50 # due within next 2 minutes
+jankenoboe learning-song-review --offset 7200   # HTML report including near-due songs
+```
 
 ## Installation
 

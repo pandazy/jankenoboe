@@ -12,24 +12,30 @@ Get all songs due for review based on spaced repetition rules. This is a special
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--limit` | No | Maximum number of results (default: 100) |
+| `--offset` | No | Look-ahead offset in seconds (default: 0). Shifts the reference time forward, e.g., `--offset 7200` finds songs due in the next 2 hours. |
 
 **Example:**
 ```bash
 jankenoboe learning-due
 jankenoboe learning-due --limit 20
+jankenoboe learning-due --offset 7200          # due within the next 2 hours
+jankenoboe learning-due --offset 120 --limit 50 # due within the next 2 minutes
 ```
 
 **Due Filter Logic:**
+
+When `--offset` is provided, `now` in the SQL becomes `now + offset_seconds`. With `--offset 0` (default), the behavior is identical to the original.
+
 ```sql
 graduated = 0 AND (
     -- Level 0 with last_level_up_at set: wait 300 seconds (5 minutes)
-    (last_level_up_at > 0 AND level = 0 AND now >= last_level_up_at + 300)
+    (last_level_up_at > 0 AND level = 0 AND (now + offset) >= last_level_up_at + 300)
     OR
     -- Level 0 newly created (last_level_up_at not yet set): use updated_at + 300 seconds
-    (last_level_up_at = 0 AND level = 0 AND now >= updated_at + 300)
+    (last_level_up_at = 0 AND level = 0 AND (now + offset) >= updated_at + 300)
     OR
     -- Level > 0: use level_up_path[level] days
-    (level > 0 AND (level_up_path[level] * 86400 + last_level_up_at) <= now)
+    (level > 0 AND (level_up_path[level] * 86400 + last_level_up_at) <= (now + offset))
 )
 ```
 
@@ -49,7 +55,7 @@ graduated = 0 AND (
 }
 ```
 
-**Full SQL:**
+**Full SQL (with offset):**
 ```sql
 SELECT l.*, s.name as song_name
 FROM learning l
@@ -57,17 +63,19 @@ JOIN song s ON l.song_id = s.id
 WHERE l.graduated = 0
   AND (
     (l.last_level_up_at > 0 AND l.level = 0
-     AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.last_level_up_at + 300))
+     AND (CAST(strftime('%s', 'now') AS INTEGER) + <offset>) >= (l.last_level_up_at + 300))
     OR
     (l.last_level_up_at = 0 AND l.level = 0
-     AND CAST(strftime('%s', 'now') AS INTEGER) >= (l.updated_at + 300))
+     AND (CAST(strftime('%s', 'now') AS INTEGER) + <offset>) >= (l.updated_at + 300))
     OR
     (l.level > 0
      AND (json_extract(l.level_up_path, '$[' || l.level || ']') * 86400 + l.last_level_up_at)
-         <= CAST(strftime('%s', 'now') AS INTEGER))
+         <= (CAST(strftime('%s', 'now') AS INTEGER) + <offset>))
   )
 ORDER BY l.level DESC;
 ```
+
+> When `--offset 0` (default), the `+ <offset>` term is omitted and the query is identical to comparing against `now`.
 
 ---
 
@@ -227,12 +235,14 @@ The report includes client-side pagination and statistics (total count, level di
 |--------|----------|-------------|
 | `--output` | No | Output file path (default: `learning-song-review.html` in current directory) |
 | `--limit` | No | Maximum number of due songs to include (default: 500) |
+| `--offset` | No | Look-ahead offset in seconds (default: 0). Same as `learning-due --offset`. |
 
 **Example:**
 ```bash
 jankenoboe learning-song-review
 jankenoboe learning-song-review --output ~/reports/review.html
 jankenoboe learning-song-review --limit 50
+jankenoboe learning-song-review --offset 7200   # include songs due within 2 hours
 ```
 
 **Output (stdout):**
