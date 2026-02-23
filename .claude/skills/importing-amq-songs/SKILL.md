@@ -58,13 +58,24 @@ Choose **one** of the following approaches:
 
 #### Option A: Automated Import
 
-For batch imports where all artists and shows already exist, use the automated import script:
+For batch imports, use the automated import script:
 
 ```bash
 python3 .claude/skills/importing-amq-songs/scripts/import_amq.py <amq_export.json>
 ```
 
-This script processes all songs sequentially — resolving artists, shows, songs, creating links and play history. It requires all artists and shows to already exist in the database (use Step 1 to verify first). Songs and show-song links are created automatically if missing.
+This script uses a two-phase approach:
+
+1. **Phase 1 (Resolution):** Resolves all entities (artist, show, song) from the database. Entries are separated into "complete" (all three found) and "missing" (any entity not in DB) groups.
+2. **Phase 2 (Processing):** For complete entries, automatically creates show-song links and play history records. Missing entries are skipped and reported.
+
+After the run, a **Missing Entities Report** is printed listing all unresolved artists, shows, and songs (deduplicated and grouped). Create the missing entities manually (or use Option B below), then re-run with `--missing-only` to process only the newly-resolved entries:
+
+```bash
+python3 .claude/skills/importing-amq-songs/scripts/import_amq.py --missing-only <amq_export.json>
+```
+
+The `--missing-only` flag skips entries where the show-song link already exists (i.e., they were successfully processed in a previous run), avoiding duplicate play_history records.
 
 #### Option B: Manual Import
 
