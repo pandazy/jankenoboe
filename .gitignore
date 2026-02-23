@@ -28,3 +28,7 @@ Cargo.lock
 
 # Task progress files (ephemeral)
 _progress_*.md
+
+# Python cache
+__pycache__/
+*.pyc
