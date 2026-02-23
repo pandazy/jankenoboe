@@ -47,6 +47,18 @@ pub fn create_data_fields(table: &str) -> Result<&'static [&'static str], AppErr
         .ok_or_else(|| AppError::InvalidParameter(format!("Invalid table for create: {table}")))
 }
 
+/// Allowed term keys per table for the `search` command (--term keys).
+pub fn allowed_term_keys(table: &str) -> Result<&'static [&'static str], AppError> {
+    table_config::get(table)
+        .map(|c| c.searchable)
+        .ok_or_else(|| {
+            AppError::InvalidParameter(format!(
+                "Invalid table in term key validation: {table}. Allowed: {}",
+                SEARCH_TABLES.join(", ")
+            ))
+        })
+}
+
 /// Allowed data fields per table for the `update` command (--data keys).
 pub fn update_data_fields(table: &str) -> Result<&'static [&'static str], AppError> {
     table_config::get(table)

@@ -303,25 +303,20 @@ fn test_search_invalid_table() {
         .to_string();
     assert_eq!(
         err,
-        "Invalid table: bad_table. Allowed: artist, show, song, play_history, rel_show_song, learning"
+        "Invalid table in term key validation: bad_table. Allowed: artist, show, song, play_history, rel_show_song, learning"
     );
 }
 
 #[test]
-fn test_search_invalid_column() {
+fn test_search_invalid_term_key() {
     let mut c = test_conn();
-    // JankenSQLHub's enumif constraint rejects "id" as a search column for artist
-    // (only "name" and "name_context" are searchable)
+    // "id" is not in artist's searchable fields (only "name" and "name_context")
     let err = commands::cmd_search(&mut c, "artist", r#"{"id":{"value":"t"}}"#, "id,name")
         .unwrap_err()
         .to_string();
-    assert!(
-        err.contains("PARAMETER_TYPE_MISMATCH"),
-        "Expected PARAMETER_TYPE_MISMATCH error, got: {err}"
-    );
-    assert!(
-        err.contains(r#"got="id""#),
-        "Expected error to mention rejected column 'id', got: {err}"
+    assert_eq!(
+        err,
+        "Invalid term key for artist: id. Allowed: name, name_context"
     );
 }
 

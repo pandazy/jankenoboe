@@ -138,20 +138,6 @@ pub fn build_selectable_enumif(tables: &[&str]) -> Value {
     json!({ "table": map })
 }
 
-/// Build an `enumif` JSON object mapping table names to their searchable fields.
-/// Used for JankenSQLHub `#[col]` identifier constraints in search.
-///
-/// Only includes tables in the given `tables` slice.
-pub fn build_searchable_enumif(tables: &[&str]) -> Value {
-    let mut map = serde_json::Map::new();
-    for (name, config) in ALL_TABLES {
-        if tables.contains(name) {
-            map.insert((*name).to_string(), json!(config.searchable));
-        }
-    }
-    json!({ "table": map })
-}
-
 /// Build a JSON array of table names from the given slice.
 /// Used for JankenSQLHub `#[table]` with `enum` constraints.
 pub fn build_table_enum(tables: &[&str]) -> Value {
@@ -210,20 +196,6 @@ mod tests {
     fn test_rel_show_song_has_no_updatable() {
         let config = get("rel_show_song").unwrap();
         assert!(config.updatable.is_empty());
-    }
-
-    #[test]
-    fn test_build_searchable_enumif() {
-        let enumif = build_searchable_enumif(&["artist", "learning"]);
-        let table_map = enumif["table"].as_object().unwrap();
-        assert_eq!(table_map.len(), 2);
-        assert!(table_map.contains_key("artist"));
-        assert!(table_map.contains_key("learning"));
-        let artist_fields = table_map["artist"].as_array().unwrap();
-        assert!(artist_fields.contains(&json!("name")));
-        assert!(!artist_fields.contains(&json!("id")));
-        let learning_fields = table_map["learning"].as_array().unwrap();
-        assert!(learning_fields.contains(&json!("song_id")));
     }
 
     #[test]

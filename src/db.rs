@@ -16,19 +16,6 @@ pub fn open_connection() -> Result<Connection, crate::error::AppError> {
     Ok(conn)
 }
 
-/// Open an in-memory database and initialize the schema.
-/// Used for testing.
-#[cfg(test)]
-pub fn open_test_connection() -> Connection {
-    let conn = Connection::open_in_memory().expect("Failed to open in-memory database");
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .expect("Failed to enable foreign keys");
-    let schema = include_str!("../docs/init-db.sql");
-    conn.execute_batch(schema)
-        .expect("Failed to initialize schema");
-    conn
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,6 +48,11 @@ mod tests {
             Some(val) => unsafe { std::env::set_var("JANKENOBOE_DB", val) },
             None => unsafe { std::env::remove_var("JANKENOBOE_DB") },
         }
-        assert!(matches!(result, Ok(_)));
+        let conn = result.unwrap();
+        // Verify foreign keys are enabled
+        let fk: i64 = conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(fk, 1);
     }
 }
