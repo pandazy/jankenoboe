@@ -13,7 +13,10 @@ if [ ! -f "$1" ]; then
 fi
 
 # Extract unique show name|vintage pairs from the AMQ export JSON
-mapfile -t shows < <(python3 -c "
+shows=()
+while IFS= read -r line; do
+  shows+=("$line")
+done < <(python3 -c "
 import json, sys
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)

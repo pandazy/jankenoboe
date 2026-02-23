@@ -13,7 +13,10 @@ if [ ! -f "$1" ]; then
 fi
 
 # Extract unique artist names from the AMQ export JSON
-mapfile -t artists < <(python3 -c "
+artists=()
+while IFS= read -r line; do
+  artists+=("$line")
+done < <(python3 -c "
 import json, sys
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)

@@ -1019,10 +1019,16 @@ fn build_review_html(
             .iter()
             .enumerate()
             .map(|(j, url)| {
+                let ext = extract_url_extension(url);
+                let label = if ext.is_empty() {
+                    format!("Media {}", j + 1)
+                } else {
+                    format!("Media {} ({ext})", j + 1)
+                };
                 format!(
-                    "<a href=\"{}\" target=\"_blank\" rel=\"noopener\">Media {}</a>",
+                    "<a href=\"{}\" target=\"_blank\" rel=\"noopener\">{}</a>",
                     escape_html(url),
-                    j + 1
+                    label
                 )
             })
             .collect::<Vec<_>>()
@@ -1201,6 +1207,23 @@ fn url_decode_map_values(data: &mut Map<String, Value>) -> Result<(), AppError> 
         }
     }
     Ok(())
+}
+
+/// Extract the file extension from a URL (e.g., ".mp3", ".webm").
+/// Returns an empty string if no extension is found.
+/// Strips query strings and fragments before extracting.
+fn extract_url_extension(url: &str) -> String {
+    // Remove query string and fragment
+    let path = url.split('?').next().unwrap_or(url);
+    let path = path.split('#').next().unwrap_or(path);
+
+    // Find the last dot in the last path segment
+    if let Some(last_segment) = path.rsplit('/').next()
+        && let Some(dot_pos) = last_segment.rfind('.')
+    {
+        return last_segment[dot_pos..].to_lowercase();
+    }
+    String::new()
 }
 
 /// Convert a serde_json::Value to a boxed rusqlite::ToSql.
