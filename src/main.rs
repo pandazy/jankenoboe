@@ -102,6 +102,24 @@ enum Commands {
         #[arg(long)]
         ids: String,
     },
+    /// Get learning records by song IDs
+    LearningBySongIds {
+        /// Comma-separated song UUIDs
+        #[arg(long)]
+        song_ids: String,
+    },
+    /// Get all shows where given artists have song performances
+    ShowsByArtistIds {
+        /// Comma-separated artist UUIDs
+        #[arg(long)]
+        artist_ids: String,
+    },
+    /// Get all songs by given artists
+    SongsByArtistIds {
+        /// Comma-separated artist UUIDs
+        #[arg(long)]
+        artist_ids: String,
+    },
     /// Reassign multiple songs to a different artist
     BulkReassign {
         /// Comma-separated song UUIDs (mode 1)
@@ -158,6 +176,15 @@ fn main() {
         } => commands::cmd_learning_song_review(&mut conn, &output, limit, offset),
         Commands::LearningSongLevelupIds { ids } => {
             commands::cmd_learning_song_levelup_ids(&mut conn, &ids)
+        }
+        Commands::LearningBySongIds { song_ids } => {
+            commands::cmd_learning_by_song_ids(&mut conn, &song_ids)
+        }
+        Commands::ShowsByArtistIds { artist_ids } => {
+            commands::cmd_shows_by_artist_ids(&mut conn, &artist_ids)
+        }
+        Commands::SongsByArtistIds { artist_ids } => {
+            commands::cmd_songs_by_artist_ids(&mut conn, &artist_ids)
         }
         Commands::BulkReassign {
             song_ids,

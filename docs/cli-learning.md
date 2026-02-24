@@ -200,6 +200,64 @@ The `level_up_path` is a JSON array of wait-days generated using a **Fibonacci-b
 
 The first 7 levels have 1-day intervals (warm-up), then intervals grow following the Fibonacci curve — reaching ~1.5 years of cumulative review time for a fully graduated song.
 
+---
+
+## jankenoboe learning-by-song-ids
+
+Get learning records for specific songs by their song IDs. Returns all learning records (both active and graduated) associated with the given song IDs, with song names and computed wait days. Uses JankenSQLHub's `:[song_ids]` list parameter for the `IN` clause.
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--song-ids` | Yes | Comma-separated song UUIDs |
+
+**Example:**
+```bash
+jankenoboe learning-by-song-ids --song-ids song-uuid-1
+jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2,song-uuid-3
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "learning-uuid-1",
+      "song_id": "song-uuid-1",
+      "song_name": "Crossing Field",
+      "level": 10,
+      "graduated": 0,
+      "last_level_up_at": 1708900000,
+      "wait_days": 7
+    },
+    {
+      "id": "learning-uuid-2",
+      "song_id": "song-uuid-2",
+      "song_name": "Hikaru Nara",
+      "level": 19,
+      "graduated": 1,
+      "last_level_up_at": 1708800000,
+      "wait_days": 574
+    }
+  ]
+}
+```
+
+**Behavior:**
+- Returns all learning records whose `song_id` matches any of the provided IDs
+- Includes both active (`graduated = 0`) and graduated (`graduated = 1`) records
+- A single song may have multiple learning records (e.g., a graduated record and an active re-learn record)
+- Results are ordered by level descending (highest level first)
+- If a song has no learning records, it is simply not included in the results (no error)
+
+**Error Cases:**
+| Condition | Exit Code | Output |
+|-----------|-----------|--------|
+| `--song-ids` is empty | 1 | `{"error": "song_ids cannot be empty"}` |
+
+---
+
 ### Related: Level Up/Down/Graduate via Update
 
 Level changes are performed using the generic `update` command from [Data Management](cli-data-management.md):

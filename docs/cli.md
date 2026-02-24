@@ -30,6 +30,8 @@ The CLI uses [JankenSQLHub](https://github.com/pandazy/jankensqlhub)'s `#[table]
 | `jankenoboe get <table> <id>` | Get record by ID |
 | `jankenoboe search <table>` | Search records with table-specific filters (exact or fuzzy match) |
 | `jankenoboe duplicates <table>` | Find duplicate records by name |
+| `jankenoboe shows-by-artist-ids` | Get all shows where given artists have song performances |
+| `jankenoboe songs-by-artist-ids` | Get all songs by given artists |
 
 ### [Learning (Spaced Repetition)](cli-learning.md)
 
@@ -39,6 +41,7 @@ The CLI uses [JankenSQLHub](https://github.com/pandazy/jankensqlhub)'s `#[table]
 | `jankenoboe learning-batch` | Add one or many songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs with enriched data |
 | `jankenoboe learning-song-levelup-ids` | Level up specific learning records by their IDs |
+| `jankenoboe learning-by-song-ids` | Get learning records by song IDs |
 
 ### [Data Management](cli-data-management.md)
 
@@ -79,6 +82,7 @@ This table shows how every required operation maps to the CLI commands.
 | Graduate | `jankenoboe update learning <id> --data '{"graduated": 1}'` |
 | Generate due songs HTML report | `jankenoboe learning-song-review` |
 | Level up specific songs by ID | `jankenoboe learning-song-levelup-ids --ids ...` |
+| Get learning records by song IDs | `jankenoboe learning-by-song-ids --song-ids ...` |
 
 ### Data Quality
 | Operation | Command |

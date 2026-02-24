@@ -155,6 +155,99 @@ jankenoboe learning-due --limit 20
 
 ---
 
+## Learning Records by Song IDs
+
+Get learning records for specific songs. Returns all records (active and graduated) with song names and wait days.
+
+```bash
+jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "learning-uuid-1",
+      "song_id": "song-uuid-1",
+      "song_name": "Crossing Field",
+      "level": 10,
+      "graduated": 0,
+      "last_level_up_at": 1708900000,
+      "wait_days": 7
+    }
+  ]
+}
+```
+
+---
+
+## Shows by Artist IDs
+
+Get all shows where the given artists have song performances. Traverses `artist → song → rel_show_song → show`.
+
+```bash
+jankenoboe shows-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "show_id": "sh-uuid-1",
+      "show_name": "Boku no Hero Academia",
+      "vintage": "Spring 2016",
+      "song_id": "song-uuid-1",
+      "song_name": "Crying for Rain",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Returns one row per artist-show-song combination
+- Ordered by artist name, then show name, then song name
+- Artists with no linked shows return zero results
+- Nonexistent artist IDs are silently ignored
+
+---
+
+## Songs by Artist IDs
+
+Get all songs by the given artists. Traverses `artist → song`.
+
+```bash
+jankenoboe songs-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "song_id": "song-uuid-1",
+      "song_name": "Crying for Rain",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Returns one row per song with artist details
+- Ordered by artist name, then song name
+- Artists with no songs return zero results
+- Nonexistent artist IDs are silently ignored
+
+---
+
 ## Find Duplicates
 
 ```bash

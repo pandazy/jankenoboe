@@ -1,21 +1,30 @@
-# v2.3.3 — macOS compatibility, cleanup, and due report improvements
+# v2.4.0 — New querying commands and review UX improvement
 
-## Changes
+## New Commands
 
-### Due song review: file extension in media links
-- Media links in the `learning-song-review` HTML report now show the file extension (e.g., "Media 1 (.mp3)", "Media 2 (.webm)")
-- URLs without a recognizable extension still display as "Media 1", "Media 2", etc.
+### `learning-by-song-ids` — Look up learning records by song IDs
+- Returns all learning records (active and graduated) for given song IDs
+- Usage: `jankenoboe learning-by-song-ids --song-ids <comma-separated-uuids>`
+- Output includes `song_name`, `level`, `graduated`, `last_level_up_at`, `wait_days`
+- Results ordered by level descending; songs with no learning records are silently omitted
 
-### Shell script macOS compatibility
-- Replaced `mapfile -t` (Bash 4+ only) with portable `while IFS= read -r` loops in `check_artists.sh` and `check_shows.sh`
-- macOS ships with Bash 3.2 which does not support `mapfile`
+### `shows-by-artist-ids` — Get all shows where given artists have songs
+- Traverses the `artist → song → rel_show_song → show` relationship chain
+- Usage: `jankenoboe shows-by-artist-ids --artist-ids <comma-separated-uuids>`
+- Output includes `show_id`, `show_name`, `vintage`, `song_id`, `song_name`, `artist_id`, `artist_name`
+- Results ordered by artist name, show name, song name
 
-### Python cache cleanup
-- Removed committed `__pycache__/` directory from git tracking
-- Added `__pycache__/` and `*.pyc` to `.gitignore`
+### `songs-by-artist-ids` — Get all songs by given artists
+- Usage: `jankenoboe songs-by-artist-ids --artist-ids <comma-separated-uuids>`
+- Output includes `song_id`, `song_name`, `artist_id`, `artist_name`
+- Results ordered by artist name, then song name
 
-### Documentation
-- Added Python 3 prerequisite to the AMQ import skill setup section
+## Improvements
+
+### Review report: click-to-toggle reviewed songs
+- Clicking a song card in the `learning-song-review` HTML report toggles it to a green "reviewed" color scheme
+- Clicking again toggles it back to the default dark blue/red scheme
+- Reviewed state persists across page navigation within the same session
 
 ## Installation
 

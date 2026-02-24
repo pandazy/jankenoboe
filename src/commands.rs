@@ -1192,6 +1192,154 @@ pub fn cmd_learning_song_levelup_ids(
 }
 
 // ---------------------------------------------------------------------------
+// learning-by-song-ids --song-ids
+// ---------------------------------------------------------------------------
+
+pub fn cmd_learning_by_song_ids(
+    conn: &mut Connection,
+    song_ids_str: &str,
+) -> Result<Value, AppError> {
+    let song_ids: Vec<&str> = song_ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if song_ids.is_empty() {
+        return Err(AppError::InvalidParameter(
+            "song_ids cannot be empty".into(),
+        ));
+    }
+
+    let query_json = json!({
+        "learning_by_songs": {
+            "query": "SELECT l.id, l.song_id, s.name as song_name, l.level, l.graduated, \
+                      l.last_level_up_at, \
+                      json_extract(l.level_up_path, '$[' || l.level || ']') as wait_days \
+                      FROM learning l \
+                      JOIN song s ON l.song_id = s.id \
+                      WHERE l.song_id IN :[song_ids] \
+                      ORDER BY l.level DESC",
+            "returns": ["id", "song_id", "song_name", "level", "graduated", "last_level_up_at", "wait_days"],
+            "args": {
+                "song_ids": {"itemtype": "string"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let ids_json: Vec<Value> = song_ids.iter().map(|s| json!(s)).collect();
+    let params = json!({ "song_ids": ids_json });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "learning_by_songs", &params)
+        .map_err(AppError::from)?;
+
+    let count = result.data.len();
+    Ok(json!({"count": count, "results": result.data}))
+}
+
+// ---------------------------------------------------------------------------
+// shows-by-artist-ids --artist-ids
+// ---------------------------------------------------------------------------
+
+pub fn cmd_shows_by_artist_ids(
+    conn: &mut Connection,
+    artist_ids_str: &str,
+) -> Result<Value, AppError> {
+    let artist_ids: Vec<&str> = artist_ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if artist_ids.is_empty() {
+        return Err(AppError::InvalidParameter(
+            "artist_ids cannot be empty".into(),
+        ));
+    }
+
+    let query_json = json!({
+        "shows_by_artists": {
+            "query": "SELECT DISTINCT sh.id as show_id, sh.name as show_name, sh.vintage, \
+                      s.id as song_id, s.name as song_name, \
+                      a.id as artist_id, a.name as artist_name \
+                      FROM show sh \
+                      JOIN rel_show_song rs ON rs.show_id = sh.id \
+                      JOIN song s ON rs.song_id = s.id \
+                      JOIN artist a ON s.artist_id = a.id \
+                      WHERE a.id IN :[artist_ids] \
+                      ORDER BY a.name, sh.name, s.name",
+            "returns": ["show_id", "show_name", "vintage", "song_id", "song_name", "artist_id", "artist_name"],
+            "args": {
+                "artist_ids": {"itemtype": "string"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let ids_json: Vec<Value> = artist_ids.iter().map(|s| json!(s)).collect();
+    let params = json!({ "artist_ids": ids_json });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "shows_by_artists", &params)
+        .map_err(AppError::from)?;
+
+    let count = result.data.len();
+    Ok(json!({"count": count, "results": result.data}))
+}
+
+// ---------------------------------------------------------------------------
+// songs-by-artist-ids --artist-ids
+// ---------------------------------------------------------------------------
+
+pub fn cmd_songs_by_artist_ids(
+    conn: &mut Connection,
+    artist_ids_str: &str,
+) -> Result<Value, AppError> {
+    let artist_ids: Vec<&str> = artist_ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if artist_ids.is_empty() {
+        return Err(AppError::InvalidParameter(
+            "artist_ids cannot be empty".into(),
+        ));
+    }
+
+    let query_json = json!({
+        "songs_by_artists": {
+            "query": "SELECT s.id as song_id, s.name as song_name, \
+                      a.id as artist_id, a.name as artist_name \
+                      FROM song s \
+                      JOIN artist a ON s.artist_id = a.id \
+                      WHERE a.id IN :[artist_ids] \
+                      ORDER BY a.name, s.name",
+            "returns": ["song_id", "song_name", "artist_id", "artist_name"],
+            "args": {
+                "artist_ids": {"itemtype": "string"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let ids_json: Vec<Value> = artist_ids.iter().map(|s| json!(s)).collect();
+    let params = json!({ "artist_ids": ids_json });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "songs_by_artists", &params)
+        .map_err(AppError::from)?;
+
+    let count = result.data.len();
+    Ok(json!({"count": count, "results": result.data}))
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

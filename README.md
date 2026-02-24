@@ -146,6 +146,12 @@ jankenoboe search song --fields id,name --term '{"artist_id": {"value": "2196b22
 
 # Find duplicate artists
 jankenoboe duplicates artist
+
+# Find all shows where specific artists perform
+jankenoboe shows-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
+
+# Get all songs by specific artists
+jankenoboe songs-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
 ```
 
 ### Learning (Spaced Repetition)
@@ -164,6 +170,9 @@ jankenoboe learning-song-review --output ~/reports/review.html
 
 # Level up specific learning records by ID (race-condition safe)
 jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
+
+# Get learning records by song IDs
+jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
 
 # Level up a learning record
 jankenoboe update learning bb9d3b38-9c28-4d11-aecd-6d2650724b98 --data '{"level": 8}'
