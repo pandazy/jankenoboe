@@ -5,12 +5,19 @@ description: Manage anime song spaced repetition learning via Jankenoboe. Add so
 
 ## Setup
 
-The `jankenoboe` CLI must be installed. Set the `JANKENOBOE_DB` environment variable to the SQLite database path:
+The `jankenoboe` CLI must be installed.
+
+### Database Path
+
+Before running commands, check if `JANKENOBOE_DB` is already set:
 ```bash
-export JANKENOBOE_DB=~/db/datasource.db
+echo $JANKENOBOE_DB
 ```
 
-**Always ask the user for the database path first** if `JANKENOBOE_DB` is not already set.
+- **If it prints a path** (e.g., `/Users/you/db/datasource.db`): proceed directly with `jankenoboe` commands.
+- **If it prints nothing (empty)**: ask the user for the database path, then either:
+  - Export it for the session: `export JANKENOBOE_DB=/path/to/datasource.db`
+  - Or prefix each command: `JANKENOBOE_DB=/path/to/datasource.db jankenoboe ...`
 
 ## Spaced Repetition Overview
 

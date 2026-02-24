@@ -1,30 +1,21 @@
-# v2.4.0 — New querying commands and review UX improvement
-
-## New Commands
-
-### `learning-by-song-ids` — Look up learning records by song IDs
-- Returns all learning records (active and graduated) for given song IDs
-- Usage: `jankenoboe learning-by-song-ids --song-ids <comma-separated-uuids>`
-- Output includes `song_name`, `level`, `graduated`, `last_level_up_at`, `wait_days`
-- Results ordered by level descending; songs with no learning records are silently omitted
-
-### `shows-by-artist-ids` — Get all shows where given artists have songs
-- Traverses the `artist → song → rel_show_song → show` relationship chain
-- Usage: `jankenoboe shows-by-artist-ids --artist-ids <comma-separated-uuids>`
-- Output includes `show_id`, `show_name`, `vintage`, `song_id`, `song_name`, `artist_id`, `artist_name`
-- Results ordered by artist name, show name, song name
-
-### `songs-by-artist-ids` — Get all songs by given artists
-- Usage: `jankenoboe songs-by-artist-ids --artist-ids <comma-separated-uuids>`
-- Output includes `song_id`, `song_name`, `artist_id`, `artist_name`
-- Results ordered by artist name, then song name
+# v2.4.1 — Improved agent skill setup instructions
 
 ## Improvements
 
-### Review report: click-to-toggle reviewed songs
-- Clicking a song card in the `learning-song-review` HTML report toggles it to a green "reviewed" color scheme
-- Clicking again toggles it back to the default dark blue/red scheme
-- Reviewed state persists across page navigation within the same session
+### Smarter `JANKENOBOE_DB` detection in agent skills
+- All 5 Claude agent skills now check `echo $JANKENOBOE_DB` before running commands
+- If the environment variable is already set, agents proceed directly without asking
+- If not set, agents ask the user for the database path and offer two options:
+  - Export for the session: `export JANKENOBOE_DB=/path/to/datasource.db`
+  - Prefix individual commands: `JANKENOBOE_DB=/path/to/datasource.db jankenoboe ...`
+- Previously, skills always asked the user for the database path regardless of whether it was already configured
+
+### Updated skills
+- `querying-jankenoboe`
+- `learning-with-jankenoboe`
+- `maintaining-jankenoboe-data`
+- `reviewing-due-songs`
+- `importing-amq-songs`
 
 ## Installation
 

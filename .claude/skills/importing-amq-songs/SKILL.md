@@ -10,14 +10,17 @@ description: Import anime song data from animemusicquiz.com JSON exports into Ja
 - **`jankenoboe` CLI** must be installed (see [README.md](../../../README.md))
 - **Python 3** is required for the import scripts. macOS includes Python 3 by default; if not available, install via `brew install python3`
 
-### Configuration
+### Database Path
 
-Set the `JANKENOBOE_DB` environment variable to the SQLite database path:
+Before running commands, check if `JANKENOBOE_DB` is already set:
 ```bash
-export JANKENOBOE_DB=~/db/datasource.db
+echo $JANKENOBOE_DB
 ```
 
-**Always ask the user for the database path first** if `JANKENOBOE_DB` is not already set.
+- **If it prints a path** (e.g., `/Users/you/db/datasource.db`): proceed directly with `jankenoboe` commands.
+- **If it prints nothing (empty)**: ask the user for the database path, then either:
+  - Export it for the session: `export JANKENOBOE_DB=/path/to/datasource.db`
+  - Or prefix each command: `JANKENOBOE_DB=/path/to/datasource.db jankenoboe ...`
 
 ---
 
