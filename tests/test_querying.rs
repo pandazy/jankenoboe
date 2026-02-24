@@ -635,3 +635,230 @@ fn test_duplicates_multiple_groups() {
     let dups = r["duplicates"].as_array().unwrap();
     assert_eq!(dups.len(), 2);
 }
+
+// === SHOWS BY ARTIST IDS ===
+
+fn insert_rel_show_song(conn: &mut Connection, show_id: &str, song_id: &str) {
+    let now = jankenoboe::models::now_unix();
+    conn.execute(
+        "INSERT INTO rel_show_song (show_id, song_id, created_at) VALUES (?1, ?2, ?3)",
+        rusqlite::params![show_id, song_id, now],
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_shows_by_artist_ids_single_artist() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Minami");
+    let sh1 = insert_show(&mut c, "Boku no Hero", "Spring 2016");
+    let sh2 = insert_show(&mut c, "Kimetsu no Yaiba", "Spring 2019");
+    let song1 = insert_song(&mut c, "Crying for Rain", &a1);
+    let song2 = insert_song(&mut c, "Viva La Vida", &a1);
+    insert_rel_show_song(&mut c, &sh1, &song1);
+    insert_rel_show_song(&mut c, &sh2, &song2);
+
+    let r = commands::cmd_shows_by_artist_ids(&mut c, &a1).unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2);
+    // All results should be from the same artist
+    assert_eq!(results[0]["artist_id"], a1);
+    assert_eq!(results[1]["artist_id"], a1);
+    assert_eq!(results[0]["artist_name"], "Minami");
+}
+
+#[test]
+fn test_shows_by_artist_ids_multiple_artists() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Artist A");
+    let a2 = insert_artist(&mut c, "Artist B");
+    let sh1 = insert_show(&mut c, "Show 1", "2020");
+    let sh2 = insert_show(&mut c, "Show 2", "2021");
+    let song1 = insert_song(&mut c, "Song A1", &a1);
+    let song2 = insert_song(&mut c, "Song B1", &a2);
+    insert_rel_show_song(&mut c, &sh1, &song1);
+    insert_rel_show_song(&mut c, &sh2, &song2);
+
+    let r = commands::cmd_shows_by_artist_ids(&mut c, &format!("{a1},{a2}")).unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    // Should include results from both artists
+    let artist_ids: Vec<&str> = results
+        .iter()
+        .map(|r| r["artist_id"].as_str().unwrap())
+        .collect();
+    assert!(artist_ids.contains(&a1.as_str()));
+    assert!(artist_ids.contains(&a2.as_str()));
+}
+
+#[test]
+fn test_shows_by_artist_ids_artist_with_no_shows() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "No Shows Artist");
+    insert_song(&mut c, "Orphan Song", &a1); // song but no rel_show_song
+
+    let r = commands::cmd_shows_by_artist_ids(&mut c, &a1).unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_shows_by_artist_ids_same_show_different_songs() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Artist X");
+    let sh1 = insert_show(&mut c, "Big Show", "2023");
+    let song1 = insert_song(&mut c, "Opening", &a1);
+    let song2 = insert_song(&mut c, "Ending", &a1);
+    insert_rel_show_song(&mut c, &sh1, &song1);
+    insert_rel_show_song(&mut c, &sh1, &song2);
+
+    let r = commands::cmd_shows_by_artist_ids(&mut c, &a1).unwrap();
+    // Two rows because two different songs link to the same show
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results[0]["show_id"], sh1);
+    assert_eq!(results[1]["show_id"], sh1);
+    // But different songs
+    let song_names: Vec<&str> = results
+        .iter()
+        .map(|r| r["song_name"].as_str().unwrap())
+        .collect();
+    assert!(song_names.contains(&"Opening"));
+    assert!(song_names.contains(&"Ending"));
+}
+
+#[test]
+fn test_shows_by_artist_ids_empty_input() {
+    let mut c = test_conn();
+    let err = commands::cmd_shows_by_artist_ids(&mut c, "")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "artist_ids cannot be empty");
+}
+
+#[test]
+fn test_shows_by_artist_ids_nonexistent_artist() {
+    let mut c = test_conn();
+    let r = commands::cmd_shows_by_artist_ids(&mut c, "nonexistent-uuid").unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_shows_by_artist_ids_returns_correct_fields() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "FieldTest");
+    let sh1 = insert_show(&mut c, "TestShow", "Winter 2025");
+    let song1 = insert_song(&mut c, "TestSong", &a1);
+    insert_rel_show_song(&mut c, &sh1, &song1);
+
+    let r = commands::cmd_shows_by_artist_ids(&mut c, &a1).unwrap();
+    let row = &r["results"][0];
+    assert_eq!(row["show_id"], sh1);
+    assert_eq!(row["show_name"], "TestShow");
+    assert_eq!(row["vintage"], "Winter 2025");
+    assert_eq!(row["song_id"], song1);
+    assert_eq!(row["song_name"], "TestSong");
+    assert_eq!(row["artist_id"], a1);
+    assert_eq!(row["artist_name"], "FieldTest");
+}
+
+// === SONGS BY ARTIST IDS ===
+
+#[test]
+fn test_songs_by_artist_ids_single_artist() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Minami");
+    insert_song(&mut c, "Crying for Rain", &a1);
+    insert_song(&mut c, "Viva La Vida", &a1);
+
+    let r = commands::cmd_songs_by_artist_ids(&mut c, &a1).unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["artist_id"], a1);
+    assert_eq!(results[1]["artist_id"], a1);
+    assert_eq!(results[0]["artist_name"], "Minami");
+}
+
+#[test]
+fn test_songs_by_artist_ids_multiple_artists() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Artist A");
+    let a2 = insert_artist(&mut c, "Artist B");
+    insert_song(&mut c, "Song A1", &a1);
+    insert_song(&mut c, "Song A2", &a1);
+    insert_song(&mut c, "Song B1", &a2);
+
+    let r = commands::cmd_songs_by_artist_ids(&mut c, &format!("{a1},{a2}")).unwrap();
+    assert_eq!(r["count"], 3);
+    let results = r["results"].as_array().unwrap();
+    let artist_ids: Vec<&str> = results
+        .iter()
+        .map(|r| r["artist_id"].as_str().unwrap())
+        .collect();
+    assert!(artist_ids.contains(&a1.as_str()));
+    assert!(artist_ids.contains(&a2.as_str()));
+}
+
+#[test]
+fn test_songs_by_artist_ids_artist_with_no_songs() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "No Songs Artist");
+
+    let r = commands::cmd_songs_by_artist_ids(&mut c, &a1).unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_songs_by_artist_ids_empty_input() {
+    let mut c = test_conn();
+    let err = commands::cmd_songs_by_artist_ids(&mut c, "")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "artist_ids cannot be empty");
+}
+
+#[test]
+fn test_songs_by_artist_ids_nonexistent_artist() {
+    let mut c = test_conn();
+    let r = commands::cmd_songs_by_artist_ids(&mut c, "nonexistent-uuid").unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_songs_by_artist_ids_returns_correct_fields() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "FieldTest");
+    let song1 = insert_song(&mut c, "TestSong", &a1);
+
+    let r = commands::cmd_songs_by_artist_ids(&mut c, &a1).unwrap();
+    let row = &r["results"][0];
+    assert_eq!(row["song_id"], song1);
+    assert_eq!(row["song_name"], "TestSong");
+    assert_eq!(row["artist_id"], a1);
+    assert_eq!(row["artist_name"], "FieldTest");
+}
+
+#[test]
+fn test_songs_by_artist_ids_ordered_by_artist_then_song() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Bravo");
+    let a2 = insert_artist(&mut c, "Alpha");
+    insert_song(&mut c, "Zeta", &a1);
+    insert_song(&mut c, "Gamma", &a2);
+    insert_song(&mut c, "Beta", &a2);
+
+    let r = commands::cmd_songs_by_artist_ids(&mut c, &format!("{a1},{a2}")).unwrap();
+    let results = r["results"].as_array().unwrap();
+    // Alpha's songs first (alphabetical by artist name), then Bravo's
+    assert_eq!(results[0]["artist_name"], "Alpha");
+    assert_eq!(results[0]["song_name"], "Beta");
+    assert_eq!(results[1]["artist_name"], "Alpha");
+    assert_eq!(results[1]["song_name"], "Gamma");
+    assert_eq!(results[2]["artist_name"], "Bravo");
+    assert_eq!(results[2]["song_name"], "Zeta");
+}

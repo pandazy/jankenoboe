@@ -134,6 +134,38 @@ jankenoboe update learning <learning_id> --data '{"graduated": 1}'
 
 ---
 
+## Get Learning Records by Song IDs
+
+Look up learning records for specific songs. Returns all records (active and graduated) with song names and wait days.
+
+```bash
+jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "learning-uuid-1",
+      "song_id": "song-uuid-1",
+      "song_name": "Crossing Field",
+      "level": 10,
+      "graduated": 0,
+      "last_level_up_at": 1708900000,
+      "wait_days": 7
+    }
+  ]
+}
+```
+
+- A single song may have multiple records (e.g., graduated + active re-learn)
+- Songs with no learning records are simply absent from results (no error)
+- Results ordered by level descending
+
+---
+
 ## Batch Level Up by IDs (Race-Condition Safe)
 
 Level up specific learning records by their IDs. Use this after generating a review report to ensure only the reviewed songs are leveled up.

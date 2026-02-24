@@ -222,3 +222,120 @@ jankenoboe duplicates artist
 ```
 
 **Note:** Duplicates may be legitimate (e.g., two real artists with the same name). This command surfaces them for human review.
+
+---
+
+## jankenoboe shows-by-artist-ids --artist-ids
+
+Get all shows where the given artists have song performances. This traverses the `artist → song → rel_show_song → show` relationship chain and returns one row per artist-show-song combination.
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--artist-ids` | Yes | Comma-separated artist UUIDs |
+
+**Example:**
+```bash
+jankenoboe shows-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "show_id": "sh-uuid-1",
+      "show_name": "Boku no Hero Academia",
+      "vintage": "Spring 2016",
+      "song_id": "song-uuid-1",
+      "song_name": "Crying for Rain",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    },
+    {
+      "show_id": "sh-uuid-2",
+      "show_name": "Kimetsu no Yaiba",
+      "vintage": "Spring 2019",
+      "song_id": "song-uuid-2",
+      "song_name": "Viva La Vida",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    }
+  ]
+}
+```
+
+**JankenSQLHub Query Definition:**
+```json
+{
+  "shows_by_artists": {
+    "query": "SELECT DISTINCT sh.id as show_id, sh.name as show_name, sh.vintage, s.id as song_id, s.name as song_name, a.id as artist_id, a.name as artist_name FROM show sh JOIN rel_show_song rs ON rs.show_id = sh.id JOIN song s ON rs.song_id = s.id JOIN artist a ON s.artist_id = a.id WHERE a.id IN :[artist_ids] ORDER BY a.name, sh.name, s.name",
+    "returns": ["show_id", "show_name", "vintage", "song_id", "song_name", "artist_id", "artist_name"],
+    "args": {
+      "artist_ids": {"itemtype": "string"}
+    }
+  }
+}
+```
+
+**Notes:**
+- Results are ordered by artist name, then show name, then song name
+- If an artist has multiple songs in the same show, each song appears as a separate row
+- Artists with no linked shows (no `rel_show_song` entries for their songs) return zero results
+- Nonexistent artist IDs are silently ignored (return zero results)
+
+---
+
+## jankenoboe songs-by-artist-ids --artist-ids
+
+Get all songs by the given artists. This traverses the `artist → song` relationship and returns one row per song with artist details.
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--artist-ids` | Yes | Comma-separated artist UUIDs |
+
+**Example:**
+```bash
+jankenoboe songs-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 3,
+  "results": [
+    {
+      "song_id": "song-uuid-1",
+      "song_name": "Crying for Rain",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    },
+    {
+      "song_id": "song-uuid-2",
+      "song_name": "Viva La Vida",
+      "artist_id": "artist-uuid-1",
+      "artist_name": "Minami"
+    }
+  ]
+}
+```
+
+**JankenSQLHub Query Definition:**
+```json
+{
+  "songs_by_artists": {
+    "query": "SELECT s.id as song_id, s.name as song_name, a.id as artist_id, a.name as artist_name FROM song s JOIN artist a ON s.artist_id = a.id WHERE a.id IN :[artist_ids] ORDER BY a.name, s.name",
+    "returns": ["song_id", "song_name", "artist_id", "artist_name"],
+    "args": {
+      "artist_ids": {"itemtype": "string"}
+    }
+  }
+}
+```
+
+**Notes:**
+- Results are ordered by artist name, then song name
+- Artists with no songs return zero results
+- Nonexistent artist IDs are silently ignored (return zero results)

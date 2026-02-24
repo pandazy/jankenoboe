@@ -21,12 +21,15 @@ The SQLite database file lives outside the project directory (e.g., `~/db/dataso
 - `jankenoboe get <table> <id>` - Read by ID with dynamic field selection
 - `jankenoboe search <table>` - Search with table-specific filters
 - `jankenoboe duplicates <table>` - Data quality duplicate detection
+- `jankenoboe shows-by-artist-ids` - Get all shows where given artists have song performances
+- `jankenoboe songs-by-artist-ids` - Get all songs by given artists
 
 **Learning (Spaced Repetition):**
 - `jankenoboe learning-due` - Spaced repetition due-for-review query
 - `jankenoboe learning-batch` - Batch add songs to learning
 - `jankenoboe learning-song-review` - Generate HTML report of due songs
 - `jankenoboe learning-song-levelup-ids` - Level up specific learning records by ID
+- `jankenoboe learning-by-song-ids` - Get learning records by song IDs
 
 **Data Management:**
 - `jankenoboe create <table>` - Create records

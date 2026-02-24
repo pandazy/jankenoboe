@@ -12,7 +12,11 @@ h1 { color: #e94560; margin-bottom: 8px; font-size: 1.5em; }
 .stats .total { font-size: 1.2em; margin-bottom: 8px; color: #e94560; font-weight: bold; }
 .level-dist { margin-top: 8px; }
 .level-badge { display: inline-block; background: #0f3460; color: #e0e0e0; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; margin: 2px; }
-.song-card { background: #16213e; border-radius: 8px; padding: 14px; margin-bottom: 10px; border-left: 4px solid #e94560; }
+.song-card { background: #16213e; border-radius: 8px; padding: 14px; margin-bottom: 10px; border-left: 4px solid #e94560; cursor: pointer; transition: background 0.2s, border-left-color 0.2s; user-select: none; }
+.song-card.reviewed { background: #1a3a2a; border-left-color: #4caf50; }
+.song-card.reviewed .song-name { color: #a0d8a0; }
+.song-card.reviewed .meta { color: #7ab87a; }
+.song-card.reviewed .shows { color: #6dbd8a; }
 .song-card .song-name { font-size: 1.1em; font-weight: bold; color: #ffffff; }
 .song-card .meta { color: #a0a0b0; font-size: 0.9em; margin-top: 4px; }
 .song-card .shows { color: #53a8b6; margin-top: 4px; font-size: 0.9em; }
@@ -41,6 +45,7 @@ h1 { color: #e94560; margin-bottom: 8px; font-size: 1.5em; }
 <script>
 const SONGS = {{SONGS_JSON}};
 const PER_PAGE = 20;
+var reviewedSet = {};
 let currentPage = 1;
 const totalPages = Math.max(1, Math.ceil(SONGS.length / PER_PAGE));
 
@@ -51,7 +56,7 @@ function render() {
   let html = '';
   for (let i = start; i < end; i++) {
     const s = SONGS[i];
-    html += '<div class="song-card">' +
+    html += '<div class="song-card" data-idx="' + i + '">' +
       '<div class="song-name">' + (i+1) + '. ' + s.name + '</div>' +
       '<div class="meta">Artist: ' + s.artist + ' &nbsp;|&nbsp; Lv.' + s.level + ' &nbsp;|&nbsp; Wait: ' + s.waitDays + ' days</div>' +
       '<div class="shows">Shows: ' + (s.shows || 'N/A') + '</div>' +
@@ -59,6 +64,14 @@ function render() {
       '</div>';
   }
   list.innerHTML = html;
+  list.querySelectorAll('.song-card').forEach(function(card) {
+    var idx = card.getAttribute('data-idx');
+    if (reviewedSet[idx]) card.classList.add('reviewed');
+    card.addEventListener('click', function() {
+      card.classList.toggle('reviewed');
+      reviewedSet[idx] = card.classList.contains('reviewed');
+    });
+  });
 
   var pagHtml = '';
   if (totalPages > 1) {

@@ -94,6 +94,8 @@ Commands are organized by category:
 | `jankenoboe get <table> <id>` | Get record by ID |
 | `jankenoboe search <table>` | Search with table-specific filters |
 | `jankenoboe duplicates <table>` | Find duplicate records by name |
+| `jankenoboe shows-by-artist-ids` | Get all shows where given artists have song performances |
+| `jankenoboe songs-by-artist-ids` | Get all songs by given artists |
 
 **Learning (Spaced Repetition):**
 | Command | Description |
@@ -102,6 +104,7 @@ Commands are organized by category:
 | `jankenoboe learning-batch` | Add songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs |
 | `jankenoboe learning-song-levelup-ids` | Level up specific learning records by ID |
+| `jankenoboe learning-by-song-ids` | Get learning records by song IDs |
 
 **Data Management:**
 | Command | Description |

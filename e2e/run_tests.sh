@@ -728,7 +728,43 @@ assert_json_field "level after review+levelup flow" "$out" '.results[0].level' "
 
 echo ""
 
-# ---- 21. Bulk reassign by song-ids ----
+# ---- 21. Learning by song IDs ----
+printf "${YELLOW}--- Learning by Song IDs ---${NC}\n"
+reset_db
+
+a_out=$(jankenoboe create artist --data '{"name":"BySongArtist"}')
+A_ID=$(echo "$a_out" | jq -r '.id')
+s1_out=$(jankenoboe create song --data "{\"name\":\"BySongSong1\",\"artist_id\":\"$A_ID\"}")
+S1_ID=$(echo "$s1_out" | jq -r '.id')
+s2_out=$(jankenoboe create song --data "{\"name\":\"BySongSong2\",\"artist_id\":\"$A_ID\"}")
+S2_ID=$(echo "$s2_out" | jq -r '.id')
+
+# Add both songs to learning
+batch_out=$(jankenoboe learning-batch --song-ids "$S1_ID,$S2_ID")
+L1_ID=$(echo "$batch_out" | jq -r '.created_ids[0]')
+L2_ID=$(echo "$batch_out" | jq -r '.created_ids[1]')
+
+# Level up song1 to level 3
+jankenoboe update learning "$L1_ID" --data '{"level": 3}' > /dev/null
+
+# Query learning records by song IDs
+out=$(jankenoboe learning-by-song-ids --song-ids "$S1_ID,$S2_ID")
+ec=$?
+assert_exit_code "learning-by-song-ids exits 0" 0 "$ec"
+assert_json_field "learning-by-song-ids count" "$out" '.count' "2"
+# Ordered by level DESC: song1 (level 3) first, song2 (level 0) second
+assert_json_field "learning-by-song-ids first level" "$out" '.results[0].level' "3"
+assert_json_field "learning-by-song-ids first song_name" "$out" '.results[0].song_name' "BySongSong1"
+assert_json_field "learning-by-song-ids second level" "$out" '.results[1].level' "0"
+assert_json_field "learning-by-song-ids second song_name" "$out" '.results[1].song_name' "BySongSong2"
+
+# Empty song-ids should fail
+jankenoboe learning-by-song-ids --song-ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "learning-by-song-ids empty exits 1" 1 "$ec"
+
+echo ""
+
+# ---- 22. Bulk reassign by song-ids ----
 printf "${YELLOW}--- Bulk Reassign by Song IDs ---${NC}\n"
 reset_db
 
@@ -756,7 +792,7 @@ assert_json_field "song2 reassigned" "$out" '.results[0].artist_id' "$A2_ID"
 
 echo ""
 
-# ---- 22. Create learning directly ----
+# ---- 23. Create learning directly ----
 printf "${YELLOW}--- Create Learning Directly ---${NC}\n"
 reset_db
 
@@ -780,7 +816,7 @@ assert_json_field "created learning graduated" "$out" '.results[0].graduated' "0
 
 echo ""
 
-# ---- 23. Error handling ----
+# ---- 24. Error handling ----
 printf "${YELLOW}--- Error Handling ---${NC}\n"
 reset_db
 
@@ -808,7 +844,7 @@ assert_exit_code "bulk-reassign no args exits non-zero" 1 "$ec"
 
 echo ""
 
-# ---- 24. URL Percent-Encoding ----
+# ---- 25. URL Percent-Encoding ----
 printf "${YELLOW}--- URL Percent-Encoding ---${NC}\n"
 reset_db
 
@@ -859,7 +895,106 @@ assert_json_field "plain text search still works" "$out" '.results | length' "1"
 
 echo ""
 
-# ---- 25. Uninstall verification ----
+# ---- 26. Shows by artist IDs ----
+printf "${YELLOW}--- Shows by Artist IDs ---${NC}\n"
+reset_db
+
+# Setup: create 2 artists, 3 songs, 2 shows, link them via rel_show_song
+a1_out=$(jankenoboe create artist --data '{"name":"ShowArtist1"}')
+A1_ID=$(echo "$a1_out" | jq -r '.id')
+a2_out=$(jankenoboe create artist --data '{"name":"ShowArtist2"}')
+A2_ID=$(echo "$a2_out" | jq -r '.id')
+
+s1_out=$(jankenoboe create song --data "{\"name\":\"Song1ByA1\",\"artist_id\":\"$A1_ID\"}")
+S1_ID=$(echo "$s1_out" | jq -r '.id')
+s2_out=$(jankenoboe create song --data "{\"name\":\"Song2ByA1\",\"artist_id\":\"$A1_ID\"}")
+S2_ID=$(echo "$s2_out" | jq -r '.id')
+s3_out=$(jankenoboe create song --data "{\"name\":\"Song3ByA2\",\"artist_id\":\"$A2_ID\"}")
+S3_ID=$(echo "$s3_out" | jq -r '.id')
+
+sh1_out=$(jankenoboe create show --data '{"name":"Show Alpha","vintage":"Spring 2024"}')
+SH1_ID=$(echo "$sh1_out" | jq -r '.id')
+sh2_out=$(jankenoboe create show --data '{"name":"Show Beta","vintage":"Fall 2024"}')
+SH2_ID=$(echo "$sh2_out" | jq -r '.id')
+
+# Link: Song1ByA1 -> Show Alpha, Song2ByA1 -> Show Beta, Song3ByA2 -> Show Alpha
+jankenoboe create rel_show_song --data "{\"show_id\":\"$SH1_ID\",\"song_id\":\"$S1_ID\"}" > /dev/null
+jankenoboe create rel_show_song --data "{\"show_id\":\"$SH2_ID\",\"song_id\":\"$S2_ID\"}" > /dev/null
+jankenoboe create rel_show_song --data "{\"show_id\":\"$SH1_ID\",\"song_id\":\"$S3_ID\"}" > /dev/null
+
+# Query shows for single artist
+out=$(jankenoboe shows-by-artist-ids --artist-ids "$A1_ID")
+ec=$?
+assert_exit_code "shows-by-artist-ids single artist exits 0" 0 "$ec"
+assert_json_field "shows-by-artist-ids single artist count" "$out" '.count' "2"
+
+# Query shows for multiple artists
+out=$(jankenoboe shows-by-artist-ids --artist-ids "$A1_ID,$A2_ID")
+ec=$?
+assert_exit_code "shows-by-artist-ids multiple artists exits 0" 0 "$ec"
+assert_json_field "shows-by-artist-ids multiple artists count" "$out" '.count' "3"
+
+# Verify returned fields
+assert_json_field "shows-by-artist-ids has show_name" "$out" '.results[0].show_name' "Show Alpha"
+assert_json_field "shows-by-artist-ids has artist_name" "$out" '.results[0].artist_name' "ShowArtist1"
+assert_json_field "shows-by-artist-ids has vintage" "$out" '.results[0].vintage' "Spring 2024"
+
+# Nonexistent artist returns empty
+out=$(jankenoboe shows-by-artist-ids --artist-ids "nonexistent-uuid")
+ec=$?
+assert_exit_code "shows-by-artist-ids nonexistent exits 0" 0 "$ec"
+assert_json_field "shows-by-artist-ids nonexistent count" "$out" '.count' "0"
+
+# Empty artist-ids should fail
+jankenoboe shows-by-artist-ids --artist-ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "shows-by-artist-ids empty exits 1" 1 "$ec"
+
+echo ""
+
+# ---- 27. Songs by artist IDs ----
+printf "${YELLOW}--- Songs by Artist IDs ---${NC}\n"
+reset_db
+
+# Setup: create 2 artists with songs
+a1_out=$(jankenoboe create artist --data '{"name":"SongArtistAlpha"}')
+SA1_ID=$(echo "$a1_out" | jq -r '.id')
+a2_out=$(jankenoboe create artist --data '{"name":"SongArtistBeta"}')
+SA2_ID=$(echo "$a2_out" | jq -r '.id')
+
+jankenoboe create song --data "{\"name\":\"AlphaSong1\",\"artist_id\":\"$SA1_ID\"}" > /dev/null
+jankenoboe create song --data "{\"name\":\"AlphaSong2\",\"artist_id\":\"$SA1_ID\"}" > /dev/null
+jankenoboe create song --data "{\"name\":\"BetaSong1\",\"artist_id\":\"$SA2_ID\"}" > /dev/null
+
+# Single artist query
+out=$(jankenoboe songs-by-artist-ids --artist-ids "$SA1_ID")
+ec=$?
+assert_exit_code "songs-by-artist-ids single artist exits 0" 0 "$ec"
+assert_json_field "songs-by-artist-ids single artist count" "$out" '.count' "2"
+assert_json_field "songs-by-artist-ids has artist_name" "$out" '.results[0].artist_name' "SongArtistAlpha"
+
+# Multiple artists query
+out=$(jankenoboe songs-by-artist-ids --artist-ids "$SA1_ID,$SA2_ID")
+ec=$?
+assert_exit_code "songs-by-artist-ids multiple artists exits 0" 0 "$ec"
+assert_json_field "songs-by-artist-ids multiple artists count" "$out" '.count' "3"
+
+# Verify returned fields
+assert_json_field "songs-by-artist-ids has song_name" "$out" '.results[0].song_name' "AlphaSong1"
+assert_json_field "songs-by-artist-ids has song_id" "$out" '.results[0].song_id | length > 0' "true"
+
+# Nonexistent artist returns empty
+out=$(jankenoboe songs-by-artist-ids --artist-ids "nonexistent-uuid")
+ec=$?
+assert_exit_code "songs-by-artist-ids nonexistent exits 0" 0 "$ec"
+assert_json_field "songs-by-artist-ids nonexistent count" "$out" '.count' "0"
+
+# Empty artist-ids should fail
+jankenoboe songs-by-artist-ids --artist-ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "songs-by-artist-ids empty exits 1" 1 "$ec"
+
+echo ""
+
+# ---- 28. Uninstall verification ----
 printf "${YELLOW}--- Uninstall Verification ---${NC}\n"
 
 # Verify binary is where we expect

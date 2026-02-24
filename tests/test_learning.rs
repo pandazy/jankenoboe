@@ -593,6 +593,101 @@ fn test_learning_song_review_empty_learning_ids() {
     std::fs::remove_file(&output_path).ok();
 }
 
+// === LEARNING-BY-SONG-IDS ===
+
+#[test]
+fn test_learning_by_song_ids_single() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 5, now, now, now, 0);
+
+    let r = commands::cmd_learning_by_song_ids(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["id"], lid);
+    assert_eq!(r["results"][0]["song_id"], sid);
+    assert_eq!(r["results"][0]["song_name"], "S");
+    assert_eq!(r["results"][0]["level"], 5);
+    assert_eq!(r["results"][0]["graduated"], 0);
+    assert_eq!(r["results"][0]["wait_days"], 1);
+}
+
+#[test]
+fn test_learning_by_song_ids_multiple_songs() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "S1", &aid);
+    let s2 = insert_song(&mut c, "S2", &aid);
+    let now = jankenoboe::models::now_unix();
+    insert_learning_raw(&mut c, &s1, 3, now, now, now, 0);
+    insert_learning_raw(&mut c, &s2, 10, now, now, now, 0);
+
+    let r = commands::cmd_learning_by_song_ids(&mut c, &format!("{s1},{s2}")).unwrap();
+    assert_eq!(r["count"], 2);
+    // Ordered by level DESC
+    assert_eq!(r["results"][0]["level"], 10);
+    assert_eq!(r["results"][1]["level"], 3);
+}
+
+#[test]
+fn test_learning_by_song_ids_includes_graduated() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    insert_learning_raw(&mut c, &sid, 19, now, now, now, 1);
+
+    let r = commands::cmd_learning_by_song_ids(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["graduated"], 1);
+}
+
+#[test]
+fn test_learning_by_song_ids_multiple_records_per_song() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    // Graduated record + active re-learn record
+    insert_learning_raw(&mut c, &sid, 19, now, now, now, 1);
+    insert_learning_raw(&mut c, &sid, 7, now, now, now, 0);
+
+    let r = commands::cmd_learning_by_song_ids(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 2);
+}
+
+#[test]
+fn test_learning_by_song_ids_no_learning_records() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+
+    let r = commands::cmd_learning_by_song_ids(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_learning_by_song_ids_empty() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_by_song_ids(&mut c, "");
+    assert!(r.is_err());
+    assert!(
+        r.unwrap_err()
+            .to_string()
+            .contains("song_ids cannot be empty")
+    );
+}
+
+#[test]
+fn test_learning_by_song_ids_nonexistent_song() {
+    let mut c = test_conn();
+    // Song doesn't exist in song table, but no learning records either — returns empty
+    let r = commands::cmd_learning_by_song_ids(&mut c, "nonexistent-id").unwrap();
+    assert_eq!(r["count"], 0);
+}
+
 // === SQL INJECTION PREVENTION ===
 
 #[test]
