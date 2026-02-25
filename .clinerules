@@ -78,7 +78,12 @@ After making changes, always execute:
 
 ```
 ├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
-├── commands.rs      # Subcommand implementations
+├── commands/        # Subcommand implementations (split by category)
+│   ├── mod.rs             # Module root, re-exports all public command functions
+│   ├── querying.rs        # get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
+│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, levelup-ids, by-song-ids
+│   ├── data_management.rs # create, update, delete, bulk-reassign
+│   └── helpers.rs         # Shared utilities (e.g., json_value_to_sql)
 ├── db.rs            # Database connection management
 ├── easing.rs        # Fibonacci-based level_up_path generation
 ├── encoding.rs      # URL percent-decoding for --term and --data values
@@ -92,7 +97,11 @@ After making changes, always execute:
 | Module | Purpose | Key Functions |
 |--------|---------|---------------|
 | **`main.rs`** | CLI entry point and argument parsing | `main()`, Clap configuration |
-| **`commands.rs`** | Subcommand logic | Command functions using JankenSQLHub |
+| **`commands/mod.rs`** | Module root, re-exports all public command functions | Re-exports from submodules |
+| **`commands/querying.rs`** | Read-only query commands | `cmd_get`, `cmd_search`, `cmd_duplicates`, `cmd_shows_by_artist_ids`, `cmd_songs_by_artist_ids` |
+| **`commands/learning.rs`** | Spaced repetition commands | `cmd_learning_due`, `cmd_learning_batch`, `cmd_learning_song_review`, `cmd_learning_song_levelup_ids`, `cmd_learning_by_song_ids` |
+| **`commands/data_management.rs`** | CRUD and bulk operations | `cmd_create`, `cmd_update`, `cmd_delete`, `cmd_bulk_reassign` |
+| **`commands/helpers.rs`** | Shared utilities | `json_value_to_sql` |
 | **`db.rs`** | Database connection management | Connection setup, datasource.db initialization |
 | **`easing.rs`** | Fibonacci-based level_up_path generation | `generate_level_up_path()` |
 | **`encoding.rs`** | URL percent-decoding for --term and --data values | `url_decode()` |

@@ -5,7 +5,12 @@
 ```
 src/
 ├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
-├── commands.rs      # Subcommand implementations (get, search, create, update, delete, etc.)
+├── commands/        # Subcommand implementations (split by category)
+│   ├── mod.rs             # Module root, re-exports all public command functions
+│   ├── querying.rs        # get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
+│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, levelup-ids, by-song-ids
+│   ├── data_management.rs # create, update, delete, bulk-reassign
+│   └── helpers.rs         # Shared utilities (e.g., json_value_to_sql)
 ├── db.rs            # Database connection management
 ├── easing.rs        # Fibonacci-based level_up_path generation
 ├── encoding.rs      # URL percent-decoding for --term and --data values
