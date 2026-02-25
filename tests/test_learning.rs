@@ -418,10 +418,10 @@ fn test_learning_song_review_deduplicates_media_urls() {
     assert_eq!(r["count"], 1);
 
     let html = std::fs::read_to_string(&output_path).unwrap();
-    // The URL should appear only once as a media link (Media 1), not twice
-    let media_count = html.matches("Media 1").count();
-    assert_eq!(media_count, 1);
-    assert!(!html.contains("Media 2"));
+    // The URL should appear only once in the mediaUrls JSON array, not twice
+    // Media rendering is now done client-side, so we check the JSON data
+    let url_count = html.matches("https://example.com/same").count();
+    assert_eq!(url_count, 1);
 
     std::fs::remove_file(&output_path).ok();
 }

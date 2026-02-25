@@ -6,8 +6,7 @@ use crate::easing::{MAX_LEVEL, generate_level_up_path_json};
 use crate::encoding::url_decode;
 use crate::error::AppError;
 use crate::models;
-
-use super::helpers::json_value_to_sql;
+use crate::table_config;
 
 // ---------------------------------------------------------------------------
 // create <table> --data
@@ -34,100 +33,167 @@ pub fn cmd_create(conn: &mut Connection, table: &str, data_json: &str) -> Result
 
     // rel_show_song has no id column - use composite key
     if table == "rel_show_song" {
-        let show_id = data
-            .get("show_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::InvalidParameter("show_id is required".into()))?;
-        let song_id = data
-            .get("song_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::InvalidParameter("song_id is required".into()))?;
-        let media_url = data.get("media_url").and_then(|v| v.as_str()).unwrap_or("");
-
-        conn.execute(
-            "INSERT INTO rel_show_song (show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![show_id, song_id, media_url, now],
-        )?;
-
-        return Ok(json!({"id": format!("{show_id}:{song_id}")}));
+        return create_rel_show_song(conn, &data, now);
     }
 
     let id = uuid::Uuid::new_v4().to_string();
 
-    // Build columns and values
-    let mut columns: Vec<&str> = vec!["id"];
-    let mut placeholders: Vec<String> = vec!["?1".into()];
-    let mut values: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(id.clone())];
-    let mut idx = 2u32;
+    // Build columns, placeholders, args, and param values dynamically
+    let mut columns: Vec<String> = vec!["\"id\"".to_string()];
+    let mut placeholders: Vec<String> = vec!["@p_id".to_string()];
+    let mut args = serde_json::Map::new();
+    let mut param_values = serde_json::Map::new();
 
+    args.insert("p_id".to_string(), json!({})); // defaults to string
+    param_values.insert("p_id".to_string(), json!(&id));
+
+    // Add user-provided fields (skip nulls — let DB defaults apply)
     for key in allowed {
         if let Some(val) = data.get(*key) {
-            columns.push(key);
-            placeholders.push(format!("?{idx}"));
-            values.push(json_value_to_sql(val));
-            idx += 1;
+            if val.is_null() {
+                continue;
+            }
+            let param_key = format!("p_{key}");
+            columns.push(format!("\"{key}\""));
+            placeholders.push(format!("@{param_key}"));
+            let (arg_def, param_val) = json_value_to_param(val);
+            args.insert(param_key.clone(), arg_def);
+            param_values.insert(param_key, param_val);
         }
     }
 
-    // Auto-add timestamps
-    if table != "rel_show_song" {
-        // created_at
-        if !columns.contains(&"created_at") {
-            columns.push("created_at");
-            placeholders.push(format!("?{idx}"));
-            values.push(Box::new(now));
-            idx += 1;
+    // Auto-add created_at
+    add_integer_column(
+        &mut columns,
+        &mut placeholders,
+        &mut args,
+        &mut param_values,
+        "created_at",
+        now,
+    );
+
+    // Auto-add updated_at for tables that have it
+    if matches!(table, "artist" | "show" | "song" | "learning") {
+        add_integer_column(
+            &mut columns,
+            &mut placeholders,
+            &mut args,
+            &mut param_values,
+            "updated_at",
+            now,
+        );
+    }
+
+    // Learning-specific defaults
+    if table == "learning" {
+        if !data.contains_key("level") {
+            add_integer_column(
+                &mut columns,
+                &mut placeholders,
+                &mut args,
+                &mut param_values,
+                "level",
+                0,
+            );
         }
-        // updated_at (for tables that have it)
-        if matches!(table, "artist" | "show" | "song" | "learning")
-            && !columns.contains(&"updated_at")
-        {
-            columns.push("updated_at");
-            placeholders.push(format!("?{idx}"));
-            values.push(Box::new(now));
-            idx += 1;
+        add_integer_column(
+            &mut columns,
+            &mut placeholders,
+            &mut args,
+            &mut param_values,
+            "last_level_up_at",
+            0,
+        );
+        if !data.contains_key("graduated") {
+            add_integer_column(
+                &mut columns,
+                &mut placeholders,
+                &mut args,
+                &mut param_values,
+                "graduated",
+                0,
+            );
         }
-        // learning defaults
-        if table == "learning" {
-            if !columns.contains(&"level") {
-                columns.push("level");
-                placeholders.push(format!("?{idx}"));
-                values.push(Box::new(0i64));
-                idx += 1;
-            }
-            if !columns.contains(&"last_level_up_at") {
-                columns.push("last_level_up_at");
-                placeholders.push(format!("?{idx}"));
-                values.push(Box::new(0i64));
-                idx += 1;
-            }
-            if !columns.contains(&"graduated") {
-                columns.push("graduated");
-                placeholders.push(format!("?{idx}"));
-                values.push(Box::new(0i64));
-                idx += 1;
-            }
-            if !columns.contains(&"level_up_path") {
-                columns.push("level_up_path");
-                placeholders.push(format!("?{idx}"));
-                values.push(Box::new(generate_level_up_path_json(MAX_LEVEL)));
-                // idx not needed further but keep consistent
-            }
+        if !data.contains_key("level_up_path") {
+            let param_key = "p_level_up_path";
+            columns.push("\"level_up_path\"".to_string());
+            placeholders.push(format!("@{param_key}"));
+            args.insert(param_key.to_string(), json!({}));
+            param_values.insert(
+                param_key.to_string(),
+                json!(generate_level_up_path_json(MAX_LEVEL)),
+            );
         }
     }
 
-    let cols_sql = columns
-        .iter()
-        .map(|c| format!("\"{c}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let cols_sql = columns.join(", ");
     let placeholders_sql = placeholders.join(", ");
-    let sql = format!("INSERT INTO \"{table}\" ({cols_sql}) VALUES ({placeholders_sql})");
+    let query_sql = format!("INSERT INTO #[table] ({cols_sql}) VALUES ({placeholders_sql})");
 
-    let params_refs: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v.as_ref()).collect();
-    conn.execute(&sql, params_refs.as_slice())?;
+    args.insert(
+        "table".to_string(),
+        json!({"enum": table_config::build_table_enum(models::CREATE_TABLES)}),
+    );
+    param_values.insert("table".to_string(), json!(table));
+
+    let query_json = json!({
+        "create_record": {
+            "query": query_sql,
+            "args": args
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    jankensqlhub::query_run_sqlite(conn, &queries, "create_record", &json!(param_values))
+        .map_err(AppError::from)?;
 
     Ok(json!({"id": id}))
+}
+
+/// Create a rel_show_song record (no id column, composite key).
+fn create_rel_show_song(
+    conn: &mut Connection,
+    data: &Map<String, Value>,
+    now: i64,
+) -> Result<Value, AppError> {
+    let show_id = data
+        .get("show_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::InvalidParameter("show_id is required".into()))?;
+    let song_id = data
+        .get("song_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::InvalidParameter("song_id is required".into()))?;
+    let media_url = data.get("media_url").and_then(|v| v.as_str()).unwrap_or("");
+
+    let query_json = json!({
+        "create_rel": {
+            "query": "INSERT INTO rel_show_song (show_id, song_id, media_url, created_at) VALUES (@show_id, @song_id, @media_url, @now)",
+            "args": {
+                "show_id": {},
+                "song_id": {},
+                "media_url": {},
+                "now": {"type": "integer"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let params = json!({
+        "show_id": show_id,
+        "song_id": song_id,
+        "media_url": media_url,
+        "now": now
+    });
+
+    jankensqlhub::query_run_sqlite(conn, &queries, "create_rel", &params)
+        .map_err(AppError::from)?;
+
+    Ok(json!({"id": format!("{show_id}:{song_id}")}))
 }
 
 // ---------------------------------------------------------------------------
@@ -159,50 +225,82 @@ pub fn cmd_update(
     }
 
     let now = models::now_unix();
-    let mut set_parts: Vec<String> = Vec::new();
-    let mut values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-    let mut idx = 1u32;
-
-    // Check if level is being changed (for learning table)
     let level_changed = table == "learning" && data.contains_key("level");
+
+    // Build SET clauses, args, and param values dynamically
+    let mut set_parts: Vec<String> = Vec::new();
+    let mut args = serde_json::Map::new();
+    let mut param_values = serde_json::Map::new();
 
     for key in allowed {
         if let Some(val) = data.get(*key) {
-            set_parts.push(format!("\"{key}\" = ?{idx}"));
-            values.push(json_value_to_sql(val));
-            idx += 1;
+            let param_key = format!("p_{key}");
+            set_parts.push(format!("\"{key}\"=@{param_key}"));
+            let (arg_def, param_val) = json_value_to_param(val);
+            args.insert(param_key.clone(), arg_def);
+            param_values.insert(param_key, param_val);
         }
     }
 
     // Auto-update updated_at for tables that have it
     if matches!(table, "artist" | "show" | "song" | "learning") {
-        set_parts.push(format!("\"updated_at\" = ?{idx}"));
-        values.push(Box::new(now));
-        idx += 1;
+        let param_key = "p_updated_at";
+        set_parts.push(format!("\"updated_at\"=@{param_key}"));
+        args.insert(param_key.to_string(), json!({"type": "integer"}));
+        param_values.insert(param_key.to_string(), json!(now));
     }
 
     // Auto-update last_level_up_at when level changes
     if level_changed {
-        set_parts.push(format!("\"last_level_up_at\" = ?{idx}"));
-        values.push(Box::new(now));
-        idx += 1;
+        let param_key = "p_last_level_up_at";
+        set_parts.push(format!("\"last_level_up_at\"=@{param_key}"));
+        args.insert(param_key.to_string(), json!({"type": "integer"}));
+        param_values.insert(param_key.to_string(), json!(now));
     }
 
-    // WHERE id = ?
-    values.push(Box::new(id.to_string()));
-    let where_idx = idx;
-
     let set_sql = set_parts.join(", ");
-    let sql = format!("UPDATE \"{table}\" SET {set_sql} WHERE id = ?{where_idx}");
 
-    let params_refs: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v.as_ref()).collect();
-    let rows_affected = conn.execute(&sql, params_refs.as_slice())?;
+    // Add table and id params
+    args.insert(
+        "table".to_string(),
+        json!({"enum": table_config::build_table_enum(models::UPDATE_TABLES)}),
+    );
+    args.insert("id".to_string(), json!({}));
+    param_values.insert("table".to_string(), json!(table));
+    param_values.insert("id".to_string(), json!(id));
 
-    if rows_affected == 0 {
+    let query_json = json!({
+        "check_exists": {
+            "query": "SELECT id FROM #[table] WHERE id=@id",
+            "returns": ["id"],
+            "args": {
+                "table": {"enum": table_config::build_table_enum(models::UPDATE_TABLES)},
+                "id": {}
+            }
+        },
+        "update_record": {
+            "query": format!("UPDATE #[table] SET {set_sql} WHERE id=@id"),
+            "args": args
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let params = json!(param_values);
+
+    // Check existence first
+    let check = jankensqlhub::query_run_sqlite(conn, &queries, "check_exists", &params)
+        .map_err(AppError::from)?;
+
+    if check.data.is_empty() {
         return Err(AppError::NotFound(format!(
             "Record not found: {table}/{id}"
         )));
     }
+
+    jankensqlhub::query_run_sqlite(conn, &queries, "update_record", &params)
+        .map_err(AppError::from)?;
 
     Ok(json!({"updated": true}))
 }
@@ -214,20 +312,19 @@ pub fn cmd_update(
 pub fn cmd_delete(conn: &mut Connection, table: &str, id: &str) -> Result<Value, AppError> {
     models::validate_table(table, models::DELETE_TABLES)?;
 
-    // Use a read query to check existence first, then execute delete via JankenSQLHub
     let query_json = json!({
         "check_exists": {
             "query": "SELECT id FROM #[table] WHERE id=@id",
             "returns": ["id"],
             "args": {
-                "table": {"enum": ["artist", "song"]},
+                "table": {"enum": table_config::build_table_enum(models::DELETE_TABLES)},
                 "id": {}
             }
         },
         "delete_by_id": {
             "query": "DELETE FROM #[table] WHERE id=@id",
             "args": {
-                "table": {"enum": ["artist", "song"]},
+                "table": {"enum": table_config::build_table_enum(models::DELETE_TABLES)},
                 "id": {}
             }
         }
@@ -383,4 +480,141 @@ fn url_decode_map_values(data: &mut Map<String, Value>) -> Result<(), AppError> 
         }
     }
     Ok(())
+}
+
+/// Convert a serde_json::Value to a JankenSQLHub (arg_definition, param_value) pair.
+/// - String → default string arg
+/// - Number (i64) → integer arg
+/// - Number (f64) → float arg
+/// - Bool → integer arg (true=1, false=0)
+/// - Array/Object → default string arg (serialized to string)
+fn json_value_to_param(val: &Value) -> (Value, Value) {
+    match val {
+        Value::String(_) => (json!({}), val.clone()),
+        Value::Number(n) => {
+            if n.is_i64() {
+                (json!({"type": "integer"}), val.clone())
+            } else {
+                (json!({"type": "float"}), val.clone())
+            }
+        }
+        Value::Bool(b) => (json!({"type": "integer"}), json!(if *b { 1 } else { 0 })),
+        _ => (json!({}), json!(val.to_string())),
+    }
+}
+
+/// Add an integer column to the dynamic INSERT builder.
+fn add_integer_column(
+    columns: &mut Vec<String>,
+    placeholders: &mut Vec<String>,
+    args: &mut serde_json::Map<String, Value>,
+    param_values: &mut serde_json::Map<String, Value>,
+    col_name: &str,
+    value: i64,
+) {
+    let param_key = format!("p_{col_name}");
+    columns.push(format!("\"{col_name}\""));
+    placeholders.push(format!("@{param_key}"));
+    args.insert(param_key.clone(), json!({"type": "integer"}));
+    param_values.insert(param_key, json!(value));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- json_value_to_param ---
+
+    #[test]
+    fn test_json_value_to_param_string() {
+        let (arg, val) = json_value_to_param(&json!("hello"));
+        assert_eq!(arg, json!({}));
+        assert_eq!(val, json!("hello"));
+    }
+
+    #[test]
+    fn test_json_value_to_param_integer() {
+        let (arg, val) = json_value_to_param(&json!(42));
+        assert_eq!(arg, json!({"type": "integer"}));
+        assert_eq!(val, json!(42));
+    }
+
+    #[test]
+    fn test_json_value_to_param_float() {
+        let (arg, val) = json_value_to_param(&json!(3.14));
+        assert_eq!(arg, json!({"type": "float"}));
+        assert_eq!(val, json!(3.14));
+    }
+
+    #[test]
+    fn test_json_value_to_param_bool_true() {
+        let (arg, val) = json_value_to_param(&json!(true));
+        assert_eq!(arg, json!({"type": "integer"}));
+        assert_eq!(val, json!(1));
+    }
+
+    #[test]
+    fn test_json_value_to_param_bool_false() {
+        let (arg, val) = json_value_to_param(&json!(false));
+        assert_eq!(arg, json!({"type": "integer"}));
+        assert_eq!(val, json!(0));
+    }
+
+    #[test]
+    fn test_json_value_to_param_array() {
+        let arr = json!([1, 2, 3]);
+        let (arg, val) = json_value_to_param(&arr);
+        assert_eq!(arg, json!({}));
+        assert_eq!(val, json!("[1,2,3]"));
+    }
+
+    #[test]
+    fn test_json_value_to_param_null() {
+        let (arg, val) = json_value_to_param(&json!(null));
+        assert_eq!(arg, json!({}));
+        assert_eq!(val, json!("null"));
+    }
+
+    // --- url_decode_map_values ---
+
+    #[test]
+    fn test_url_decode_map_values_string_decoded() {
+        let mut map = serde_json::Map::new();
+        map.insert("name".into(), json!("it%27s"));
+        url_decode_map_values(&mut map).unwrap();
+        assert_eq!(map["name"], json!("it's"));
+    }
+
+    #[test]
+    fn test_url_decode_map_values_non_string_unchanged() {
+        let mut map = serde_json::Map::new();
+        map.insert("count".into(), json!(42));
+        map.insert("active".into(), json!(true));
+        url_decode_map_values(&mut map).unwrap();
+        assert_eq!(map["count"], json!(42));
+        assert_eq!(map["active"], json!(true));
+    }
+
+    #[test]
+    fn test_url_decode_map_values_plain_string_unchanged() {
+        let mut map = serde_json::Map::new();
+        map.insert("name".into(), json!("hello"));
+        url_decode_map_values(&mut map).unwrap();
+        assert_eq!(map["name"], json!("hello"));
+    }
+
+    // --- add_integer_column ---
+
+    #[test]
+    fn test_add_integer_column() {
+        let mut cols = vec![];
+        let mut phs = vec![];
+        let mut args = serde_json::Map::new();
+        let mut vals = serde_json::Map::new();
+        add_integer_column(&mut cols, &mut phs, &mut args, &mut vals, "level", 5);
+        assert_eq!(cols, vec!["\"level\""]);
+        assert_eq!(phs, vec!["@p_level"]);
+        assert_eq!(args["p_level"], json!({"type": "integer"}));
+        assert_eq!(vals["p_level"], json!(5));
+    }
 }

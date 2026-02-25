@@ -195,51 +195,62 @@ pub fn cmd_search(
 pub fn cmd_duplicates(conn: &mut Connection, table: &str) -> Result<Value, AppError> {
     models::validate_table(table, models::DUPLICATES_TABLES)?;
 
-    // Find groups with case-insensitive matching names
-    let sql = match table {
-        "artist" | "song" => format!(
+    let table_enum = table_config::build_table_enum(models::DUPLICATES_TABLES);
+
+    // Two query variants: artist/song include a song_count subquery; show uses 0
+    let (query_name, query_sql) = match table {
+        "artist" | "song" => (
+            "duplicates_with_song_count",
             "SELECT a.id, a.name, \
              (SELECT COUNT(*) FROM song s WHERE s.artist_id = a.id) as song_count \
-             FROM \"{table}\" a \
+             FROM #[table] a \
              WHERE LOWER(a.name) IN ( \
-               SELECT LOWER(name) FROM \"{table}\" \
+               SELECT LOWER(name) FROM #[table] \
                WHERE status = 0 \
                GROUP BY LOWER(name) HAVING COUNT(*) > 1 \
              ) AND a.status = 0 \
-             ORDER BY LOWER(a.name), a.name"
+             ORDER BY LOWER(a.name), a.name",
         ),
-        "show" => "SELECT a.id, a.name, \
+        "show" => (
+            "duplicates_no_song_count",
+            "SELECT a.id, a.name, \
              0 as song_count \
-             FROM \"show\" a \
+             FROM #[table] a \
              WHERE LOWER(a.name) IN ( \
-               SELECT LOWER(name) FROM \"show\" \
+               SELECT LOWER(name) FROM #[table] \
                WHERE status = 0 \
                GROUP BY LOWER(name) HAVING COUNT(*) > 1 \
              ) AND a.status = 0 \
-             ORDER BY LOWER(a.name), a.name"
-            .to_string(),
+             ORDER BY LOWER(a.name), a.name",
+        ),
         _ => unreachable!(),
     };
 
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map([], |row| {
-        let id: String = row.get(0)?;
-        let name: String = row.get(1)?;
-        let song_count: i64 = row.get(2)?;
-        Ok((id, name, song_count))
-    })?;
+    let query_json = json!({
+        query_name: {
+            "query": query_sql,
+            "returns": ["id", "name", "song_count"],
+            "args": {
+                "table": {"enum": table_enum}
+            }
+        }
+    });
 
-    let mut all_records: Vec<(String, String, i64)> = Vec::new();
-    for r in rows {
-        all_records.push(r?);
-    }
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
 
-    // Group by lowercase name
+    let params = json!({ "table": table });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, query_name, &params)
+        .map_err(AppError::from)?;
+
+    // Group rows by lowercase name (rows are already ordered by LOWER(name))
     let mut groups: Vec<Value> = Vec::new();
     let mut current_group_name: Option<String> = None;
     let mut current_records: Vec<Value> = Vec::new();
 
-    for (id, name, song_count) in &all_records {
+    for row in &result.data {
+        let name = row["name"].as_str().unwrap_or("");
         let lower = name.to_lowercase();
         if current_group_name.as_ref() != Some(&lower) {
             if !current_records.is_empty() {
@@ -252,9 +263,9 @@ pub fn cmd_duplicates(conn: &mut Connection, table: &str) -> Result<Value, AppEr
             current_group_name = Some(lower);
         }
         current_records.push(json!({
-            "id": id,
-            "name": name,
-            "song_count": song_count
+            "id": row["id"],
+            "name": row["name"],
+            "song_count": row["song_count"]
         }));
     }
     if !current_records.is_empty() {

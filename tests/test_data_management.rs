@@ -647,6 +647,26 @@ fn test_create_data_integer_not_decoded() {
 }
 
 #[test]
+fn test_create_invalid_url_encoding() {
+    let mut c = test_conn();
+    // Invalid percent-encoding: "%ZZ" is not valid hex
+    let err = commands::cmd_create(&mut c, "artist", r#"{"name":"Bad%ZZvalue"}"#)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("URL decoding error"));
+}
+
+#[test]
+fn test_update_invalid_url_encoding() {
+    let mut c = test_conn();
+    let id = insert_artist(&mut c, "A");
+    let err = commands::cmd_update(&mut c, "artist", &id, r#"{"name":"Bad%ZZvalue"}"#)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("URL decoding error"));
+}
+
+#[test]
 fn test_create_and_search_roundtrip_with_quotes() {
     let mut c = test_conn();
     // Create artist with URL-encoded name containing single quote
