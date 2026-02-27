@@ -174,6 +174,9 @@ jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
 # Get learning records by song IDs
 jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
 
+# Get learning stats per song (days spent learning)
+jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2
+
 # Level up a learning record
 jankenoboe update learning bb9d3b38-9c28-4d11-aecd-6d2650724b98 --data '{"level": 8}'
 ```

@@ -258,6 +258,66 @@ jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2,song-uuid-3
 
 ---
 
+## jankenoboe learning-song-stats
+
+Get learning statistics per song, grouped by song ID. For each song, aggregates all learning records (including graduated and re-learn) to show the earliest start date, most recent review date, and how many days were spent learning the song. Uses JankenSQLHub's `:[song_ids]` list parameter for the `IN` clause.
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--song-ids` | Yes | Comma-separated song UUIDs |
+
+**Example:**
+```bash
+jankenoboe learning-song-stats --song-ids song-uuid-1
+jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2,song-uuid-3
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "song_id": "song-uuid-1",
+      "song_name": "Crossing Field",
+      "earliest_created_at": 1700000000,
+      "latest_last_level_up_at": 1700864000,
+      "days_spent": 10
+    },
+    {
+      "song_id": "song-uuid-2",
+      "song_name": "Hikaru Nara",
+      "earliest_created_at": 1698000000,
+      "latest_last_level_up_at": 1700592000,
+      "days_spent": 30
+    }
+  ]
+}
+```
+
+**Fields:**
+| Field | Description |
+|-------|-------------|
+| `song_id` | Song UUID |
+| `song_name` | Song name |
+| `earliest_created_at` | Unix timestamp of the earliest learning record creation |
+| `latest_last_level_up_at` | Unix timestamp of the most recent level-up across all records |
+| `days_spent` | Absolute gap in days between earliest creation and most recent level-up (rounded) |
+
+**Behavior:**
+- Groups all learning records by `song_id` (including graduated and active re-learn records)
+- `days_spent` = `ROUND(ABS(MAX(last_level_up_at) - MIN(created_at)) / 86400)`
+- Results are ordered by `days_spent` descending (longest learning time first)
+- Songs with no learning records are not included in results (no error)
+
+**Error Cases:**
+| Condition | Exit Code | Output |
+|-----------|-----------|--------|
+| `--song-ids` is empty | 1 | `{"error": "song_ids cannot be empty"}` |
+
+---
+
 ### Related: Level Up/Down/Graduate via Update
 
 Level changes are performed using the generic `update` command from [Data Management](cli-data-management.md):
