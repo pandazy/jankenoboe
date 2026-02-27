@@ -561,6 +561,58 @@ pub fn cmd_learning_by_song_ids(
 }
 
 // ---------------------------------------------------------------------------
+// learning-song-stats --song-ids
+// ---------------------------------------------------------------------------
+
+pub fn cmd_learning_song_stats(
+    conn: &mut Connection,
+    song_ids_str: &str,
+) -> Result<Value, AppError> {
+    let song_ids: Vec<&str> = song_ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if song_ids.is_empty() {
+        return Err(AppError::InvalidParameter(
+            "song_ids cannot be empty".into(),
+        ));
+    }
+
+    let query_json = json!({
+        "learning_song_stats": {
+            "query": "SELECT l.song_id, s.name AS song_name, \
+                      MIN(l.created_at) AS earliest_created_at, \
+                      MAX(l.last_level_up_at) AS latest_last_level_up_at, \
+                      CAST(ROUND(ABS(MAX(l.last_level_up_at) - MIN(l.created_at)) / 86400.0) AS INTEGER) AS days_spent \
+                      FROM learning l \
+                      JOIN song s ON l.song_id = s.id \
+                      WHERE l.song_id IN :[song_ids] \
+                      GROUP BY l.song_id \
+                      ORDER BY days_spent DESC",
+            "returns": ["song_id", "song_name", "earliest_created_at",
+                        "latest_last_level_up_at", "days_spent"],
+            "args": {
+                "song_ids": {"itemtype": "string"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let ids_json: Vec<Value> = song_ids.iter().map(|s| json!(s)).collect();
+    let params = json!({ "song_ids": ids_json });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "learning_song_stats", &params)
+        .map_err(AppError::from)?;
+
+    let count = result.data.len();
+    Ok(json!({"count": count, "results": result.data}))
+}
+
+// ---------------------------------------------------------------------------
 // Review HTML helpers
 // ---------------------------------------------------------------------------
 

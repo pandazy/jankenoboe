@@ -141,6 +141,36 @@ jankenoboe update learning <learning_id> --data '{"graduated": 1}'
 
 ---
 
+## Get Learning Stats per Song
+
+Get the time spent learning each song. Groups all learning records by song and calculates the absolute gap in days between the earliest creation date and the most recent last_level_up_at.
+
+```bash
+jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2
+```
+
+**Output:**
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "song_id": "song-uuid-1",
+      "song_name": "Crossing Field",
+      "earliest_created_at": 1700000000,
+      "latest_last_level_up_at": 1700864000,
+      "days_spent": 10
+    }
+  ]
+}
+```
+
+- `days_spent` = `ABS(MAX(last_level_up_at) - MIN(created_at)) / 86400` (rounded)
+- Ordered by `days_spent` descending
+- Songs with no learning records are absent (no error)
+
+---
+
 ## Get Learning Records by Song IDs
 
 Look up learning records for specific songs. Returns all records (active and graduated) with song names and wait days.

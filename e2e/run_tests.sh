@@ -994,7 +994,43 @@ assert_exit_code "songs-by-artist-ids empty exits 1" 1 "$ec"
 
 echo ""
 
-# ---- 28. Uninstall verification ----
+# ---- 28. Learning song stats ----
+printf "${YELLOW}--- Learning Song Stats ---${NC}\n"
+reset_db
+
+a_out=$(jankenoboe create artist --data '{"name":"StatsArtist"}')
+A_ID=$(echo "$a_out" | jq -r '.id')
+s1_out=$(jankenoboe create song --data "{\"name\":\"StatsSong1\",\"artist_id\":\"$A_ID\"}")
+S1_ID=$(echo "$s1_out" | jq -r '.id')
+s2_out=$(jankenoboe create song --data "{\"name\":\"StatsSong2\",\"artist_id\":\"$A_ID\"}")
+S2_ID=$(echo "$s2_out" | jq -r '.id')
+
+# Add both to learning, then backdate created_at and set last_level_up_at
+jankenoboe learning-batch --song-ids "$S1_ID,$S2_ID" > /dev/null
+# Backdate: song1 created 10 days ago, last_level_up_at = now (864000s = 10 days)
+sqlite3 "$DB_PATH" "UPDATE learning SET created_at = created_at - 864000 WHERE song_id = '$S1_ID';"
+# Backdate: song2 created 5 days ago
+sqlite3 "$DB_PATH" "UPDATE learning SET created_at = created_at - 432000 WHERE song_id = '$S2_ID';"
+# Set last_level_up_at to current time for both
+sqlite3 "$DB_PATH" "UPDATE learning SET last_level_up_at = CAST(strftime('%s','now') AS INTEGER);"
+
+out=$(jankenoboe learning-song-stats --song-ids "$S1_ID,$S2_ID")
+ec=$?
+assert_exit_code "learning-song-stats exits 0" 0 "$ec"
+assert_json_field "learning-song-stats count" "$out" '.count' "2"
+# Ordered by days_spent DESC: song1 (10 days) first, song2 (5 days) second
+assert_json_field "learning-song-stats first song" "$out" '.results[0].song_name' "StatsSong1"
+assert_json_field "learning-song-stats first days_spent" "$out" '.results[0].days_spent' "10"
+assert_json_field "learning-song-stats second song" "$out" '.results[1].song_name' "StatsSong2"
+assert_json_field "learning-song-stats second days_spent" "$out" '.results[1].days_spent' "5"
+
+# Empty song-ids should fail
+jankenoboe learning-song-stats --song-ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "learning-song-stats empty exits 1" 1 "$ec"
+
+echo ""
+
+# ---- 29. Uninstall verification ----
 printf "${YELLOW}--- Uninstall Verification ---${NC}\n"
 
 # Verify binary is where we expect

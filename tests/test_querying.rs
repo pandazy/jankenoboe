@@ -498,14 +498,9 @@ fn test_search_empty_fields() {
 #[test]
 fn test_search_invalid_url_encoding() {
     let mut c = test_conn();
-    let err = commands::cmd_search(
-        &mut c,
-        "artist",
-        r#"{"name":{"value":"%ZZ"}}"#,
-        "id,name",
-    )
-    .unwrap_err()
-    .to_string();
+    let err = commands::cmd_search(&mut c, "artist", r#"{"name":{"value":"%ZZ"}}"#, "id,name")
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("URL decoding error for search value of 'name'"));
 }
 

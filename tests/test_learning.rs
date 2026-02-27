@@ -688,6 +688,107 @@ fn test_learning_by_song_ids_nonexistent_song() {
     assert_eq!(r["count"], 0);
 }
 
+// === LEARNING-SONG-STATS ===
+
+#[test]
+fn test_learning_song_stats_single_song_single_record() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "TestArtist");
+    let sid = insert_song(&mut c, "TestSong", &aid);
+    let created = 1700000000_i64;
+    let last_up = 1700864000_i64; // 10 days later (864000 seconds)
+    insert_learning_raw(&mut c, &sid, 5, created, created, last_up, 0);
+
+    let r = commands::cmd_learning_song_stats(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["song_id"], sid);
+    assert_eq!(r["results"][0]["song_name"], "TestSong");
+    assert_eq!(r["results"][0]["earliest_created_at"], 1700000000);
+    assert_eq!(r["results"][0]["latest_last_level_up_at"], 1700864000);
+    assert_eq!(r["results"][0]["days_spent"], 10);
+}
+
+#[test]
+fn test_learning_song_stats_multiple_records_per_song() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    // Graduated record (earliest)
+    let created1 = 1700000000_i64;
+    let last_up1 = 1701000000_i64;
+    insert_learning_raw(&mut c, &sid, 19, created1, created1, last_up1, 1);
+    // Re-learn record (later creation, most recent last_level_up_at)
+    let created2 = 1702000000_i64;
+    let last_up2 = 1703000000_i64;
+    insert_learning_raw(&mut c, &sid, 7, created2, created2, last_up2, 0);
+
+    let r = commands::cmd_learning_song_stats(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    // Should use MIN(created_at)=1700000000 and MAX(last_level_up_at)=1703000000
+    assert_eq!(r["results"][0]["earliest_created_at"], 1700000000);
+    assert_eq!(r["results"][0]["latest_last_level_up_at"], 1703000000);
+    // ABS(1703000000 - 1700000000) / 86400 = 34.7... ≈ 35 days
+    assert_eq!(r["results"][0]["days_spent"], 35);
+}
+
+#[test]
+fn test_learning_song_stats_multiple_songs() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "Song1", &aid);
+    let s2 = insert_song(&mut c, "Song2", &aid);
+    // Song1: 20 days spent
+    insert_learning_raw(&mut c, &s1, 10, 1700000000, 1700000000, 1701728000, 0);
+    // Song2: 5 days spent
+    insert_learning_raw(&mut c, &s2, 3, 1700000000, 1700000000, 1700432000, 0);
+
+    let r = commands::cmd_learning_song_stats(&mut c, &format!("{s1},{s2}")).unwrap();
+    assert_eq!(r["count"], 2);
+    // Ordered by days_spent DESC
+    assert_eq!(r["results"][0]["song_name"], "Song1");
+    assert_eq!(r["results"][0]["days_spent"], 20);
+    assert_eq!(r["results"][1]["song_name"], "Song2");
+    assert_eq!(r["results"][1]["days_spent"], 5);
+}
+
+#[test]
+fn test_learning_song_stats_no_learning_records() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+
+    let r = commands::cmd_learning_song_stats(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_learning_song_stats_empty_song_ids() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_song_stats(&mut c, "");
+    assert!(r.is_err());
+    assert!(
+        r.unwrap_err()
+            .to_string()
+            .contains("song_ids cannot be empty")
+    );
+}
+
+#[test]
+fn test_learning_song_stats_abs_gap_when_last_level_up_is_zero() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    // last_level_up_at = 0 (never leveled up), created_at = some time
+    // ABS(0 - 1700000000) / 86400 = 19675 days
+    insert_learning_raw(&mut c, &sid, 0, 1700000000, 1700000000, 0, 0);
+
+    let r = commands::cmd_learning_song_stats(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["latest_last_level_up_at"], 0);
+    assert_eq!(r["results"][0]["days_spent"], 19676);
+}
+
 // === SQL INJECTION PREVENTION ===
 
 #[test]

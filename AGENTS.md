@@ -110,6 +110,7 @@ Commands are organized by category:
 | `jankenoboe learning-song-review` | Generate HTML report of due songs |
 | `jankenoboe learning-song-levelup-ids` | Level up specific learning records by ID |
 | `jankenoboe learning-by-song-ids` | Get learning records by song IDs |
+| `jankenoboe learning-song-stats` | Get learning stats per song (days spent learning) |
 
 **Data Management:**
 | Command | Description |

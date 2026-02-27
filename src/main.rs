@@ -108,6 +108,12 @@ enum Commands {
         #[arg(long)]
         song_ids: String,
     },
+    /// Get learning stats per song (days spent learning)
+    LearningSongStats {
+        /// Comma-separated song UUIDs
+        #[arg(long)]
+        song_ids: String,
+    },
     /// Get all shows where given artists have song performances
     ShowsByArtistIds {
         /// Comma-separated artist UUIDs
@@ -179,6 +185,9 @@ fn main() {
         }
         Commands::LearningBySongIds { song_ids } => {
             commands::cmd_learning_by_song_ids(&mut conn, &song_ids)
+        }
+        Commands::LearningSongStats { song_ids } => {
+            commands::cmd_learning_song_stats(&mut conn, &song_ids)
         }
         Commands::ShowsByArtistIds { artist_ids } => {
             commands::cmd_shows_by_artist_ids(&mut conn, &artist_ids)
