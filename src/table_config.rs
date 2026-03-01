@@ -43,7 +43,7 @@ static SHOW: TableConfig = TableConfig {
         "updated_at",
         "status",
     ],
-    searchable: &["name", "vintage"],
+    searchable: &["name", "name_romaji", "vintage"],
     creatable: &["name", "name_romaji", "vintage", "s_type"],
     updatable: &["name", "name_romaji", "vintage", "s_type", "status"],
 };

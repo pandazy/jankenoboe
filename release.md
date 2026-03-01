@@ -1,16 +1,24 @@
-## v2.5.0
+## v2.5.1
 
-### Import: Romaji Name Backfill for Shows
+### Search: Romaji Name Support for Shows
 
-The AMQ import script now automatically fills in missing `name_romaji` for existing shows when the import JSON provides a romaji name. The skill documentation also emphasizes always including `name_romaji` when manually creating new shows.
+The `search show` command now supports searching by `name_romaji`, enabling lookups of shows by their Japanese romaji names. All match modes are supported: `exact`, `exact-i`, `starts-with`, `ends-with`, and `contains`.
 
-### Learning Song Stats: Play History Count
+```bash
+# Find show by romaji name (case-insensitive)
+jankenoboe search show --fields id,name,name_romaji --term '{"name_romaji":{"value":"yubisaki to renren","match":"exact-i"}}'
 
-`learning-song-stats` now includes a `play_count` field showing the total number of play_history records for each song, giving a quick view of how often a song has been encountered in quizzes.
+# Find shows whose romaji name contains "kimi"
+jankenoboe search show --fields id,name,name_romaji,vintage --term '{"name_romaji":{"value":"kimi","match":"contains"}}'
+```
 
-### Due Review HTML: Learning ID, Song ID, and Show ID with Copy Buttons
+### Documentation: Consolidate docs/ and skills/
 
-Each song card in the due review HTML report now displays the learning record ID, song ID, and show ID(s) with one-click copy buttons, making it easy to reference these IDs for quick data lookups or CLI commands.
+Reduced duplication between `docs/cli-*.md` and `.claude/skills/` by establishing clear ownership:
+- **`docs/cli-*.md`** — Developer technical reference (args, options, field tables, SQL, algorithms, error cases)
+- **`.claude/skills/`** — User-facing guides (usage examples, workflows, output formats)
+
+Each CLI doc page now links to the relevant skill(s) for examples. Removed redundant command examples and output samples from docs.
 
 ## Installation
 
