@@ -177,7 +177,7 @@ def seed_db(db_path):
         (
             YOUR_NAME_ID,
             "Your Name.",
-            "Kimi no Na wa.",
+            "",  # Empty romaji — should be backfilled by import
             "Summer 2016",
             "movie",
             NOW,
@@ -393,6 +393,42 @@ def main():
         check(
             f"2 rel_show_song records created" f" (got {rss_count})",
             rss_count == 2,
+        )
+
+        # Verify romaji backfill: "Your Name." had
+        # empty romaji, import should have filled it
+        check(
+            "Output mentions romaji backfill",
+            "filled romaji name" in stdout,
+        )
+        # Verify DB: "Your Name." now has name_romaji
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute(
+            "SELECT name_romaji FROM show WHERE id=?",
+            (YOUR_NAME_ID,),
+        )
+        romaji_val = c.fetchone()[0]
+        conn.close()
+        check(
+            f"Your Name. romaji backfilled"
+            f" (got '{romaji_val}')",
+            romaji_val == "Kimi no Na wa.",
+        )
+        # Verify: KnT show romaji NOT overwritten
+        # (it already had a value)
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute(
+            "SELECT name_romaji FROM show WHERE id=?",
+            (KNT_SHOW_ID,),
+        )
+        knt_romaji = c.fetchone()[0]
+        conn.close()
+        check(
+            "KnT show romaji unchanged"
+            f" (got '{knt_romaji}')",
+            knt_romaji == "Kimi ni Todoke",
         )
 
         # === Test 2: Re-run with --missing-only ===

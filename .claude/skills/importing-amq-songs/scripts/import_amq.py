@@ -50,8 +50,12 @@ def get_artist_id(artist_name):
     return None
 
 
-def get_show_id(show_name, vintage):
-    """Get show ID by name + vintage match."""
+def get_show(show_name, vintage):
+    """Get show record by name + vintage match.
+
+    Returns the full show record dict (with id, name, vintage,
+    name_romaji) or None if not found.
+    """
     encoded = url_encode(show_name)
     term = (
         f'{{"name": {{"value": "{encoded}",'
@@ -63,14 +67,30 @@ def get_show_id(show_name, vintage):
             "search",
             "show",
             "--fields",
-            "id,name,vintage",
+            "id,name,vintage,name_romaji",
             "--term",
             term,
         ]
     )
     if result and result.get("results"):
-        return result["results"][0]["id"]
+        return result["results"][0]
     return None
+
+
+def update_show_romaji(show_id, romaji_name):
+    """Update a show's name_romaji field."""
+    encoded = url_encode(romaji_name)
+    data = f'{{"name_romaji": "{encoded}"}}'
+    result = run_jankenoboe(
+        [
+            "update",
+            "show",
+            show_id,
+            "--data",
+            data,
+        ]
+    )
+    return result is not None
 
 
 def get_song_id(song_name, artist_id):
@@ -186,9 +206,15 @@ def resolve_entry(song_entry):
         resolved["missing"].append(f"artist: {artist_name}")
 
     # Resolve show
-    show_id = get_show_id(show_name, vintage)
-    if show_id:
-        resolved["show_id"] = show_id
+    romaji_name = anime_names.get("romaji", "")
+    show_record = get_show(show_name, vintage)
+    if show_record:
+        resolved["show_id"] = show_record["id"]
+        # Fill missing romaji name if the import has one
+        existing_romaji = show_record.get("name_romaji") or ""
+        if not existing_romaji and romaji_name:
+            if update_show_romaji(show_record["id"], romaji_name):
+                resolved["romaji_updated"] = True
     else:
         resolved["missing"].append(f"show: {show_name} ({vintage})")
 
@@ -356,7 +382,10 @@ def import_amq_file(filepath, missing_only=False):
             print(f"  \u2717 Missing: " + ", ".join(resolved["missing"]))
         else:
             complete.append(resolved)
-            print("  \u2713 All entities found")
+            romaji_note = ""
+            if resolved.get("romaji_updated"):
+                romaji_note = " (filled romaji name)"
+            print(f"  \u2713 All entities found{romaji_note}")
 
     print(f"\n--- Resolution Summary ---")
     print(f"Complete: {len(complete)}")

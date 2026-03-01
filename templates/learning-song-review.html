@@ -24,6 +24,11 @@ h1 { color: #e94560; margin-bottom: 8px; font-size: 1.5em; }
 .song-card .media a { color: #e94560; text-decoration: none; margin-right: 10px; font-size: 0.85em; }
 .song-card .media a:hover { text-decoration: underline; }
 .no-media { color: #666; font-size: 0.85em; }
+.ids-row { margin-top: 6px; font-size: 0.8em; color: #888; }
+.ids-row .id-label { color: #a0a0b0; }
+.copy-btn { background: #0f3460; color: #e0e0e0; border: none; padding: 1px 6px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-left: 4px; }
+.copy-btn:hover { background: #e94560; }
+.copy-btn.copied { background: #4caf50; }
 .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
 .pagination button { background: #0f3460; color: #e0e0e0; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
 .pagination button:hover { background: #e94560; }
@@ -72,6 +77,34 @@ function renderMediaHtml(mediaUrls) {
   return parts.join(' ');
 }
 
+function copyId(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    btn.classList.add('copied');
+    btn.textContent = '\u2713';
+    setTimeout(function() { btn.classList.remove('copied'); btn.textContent = '\u2398'; }, 1200);
+  });
+}
+
+function renderIdsRow(s) {
+  var parts = [];
+  if (s.learningId) {
+    parts.push('<span class="id-label">Learning:</span> ' + s.learningId +
+      ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + s.learningId + '\')" title="Copy learning ID">\u2398</button>');
+  }
+  if (s.songId) {
+    parts.push('<span class="id-label">Song:</span> ' + s.songId +
+      ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + s.songId + '\')" title="Copy song ID">\u2398</button>');
+  }
+  if (s.showIds && s.showIds.length > 0) {
+    for (var k = 0; k < s.showIds.length; k++) {
+      parts.push('<span class="id-label">Show:</span> ' + s.showIds[k] +
+        ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + s.showIds[k] + '\')" title="Copy show ID">\u2398</button>');
+    }
+  }
+  if (parts.length === 0) return '';
+  return '<div class="ids-row">' + parts.join(' &nbsp;|&nbsp; ') + '</div>';
+}
+
 function render() {
   var start = (currentPage - 1) * PER_PAGE;
   var end = Math.min(start + PER_PAGE, SONGS.length);
@@ -84,6 +117,7 @@ function render() {
       '<div class="meta">Artist: ' + s.artist + ' &nbsp;|&nbsp; Lv.' + s.level + ' &nbsp;|&nbsp; Wait: ' + s.waitDays + ' days</div>' +
       '<div class="shows">Shows: ' + (s.shows || 'N/A') + '</div>' +
       '<div class="media">' + renderMediaHtml(s.mediaUrls) + '</div>' +
+      renderIdsRow(s) +
       '</div>';
   }
   list.innerHTML = html;
