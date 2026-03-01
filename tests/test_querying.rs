@@ -46,11 +46,20 @@ fn insert_play_history(
 }
 
 fn insert_show(conn: &mut Connection, name: &str, vintage: &str) -> String {
+    insert_show_full(conn, name, None, vintage)
+}
+
+fn insert_show_full(
+    conn: &mut Connection,
+    name: &str,
+    name_romaji: Option<&str>,
+    vintage: &str,
+) -> String {
     let id = uuid::Uuid::new_v4().to_string();
     let now = jankenoboe::models::now_unix();
     conn.execute(
-        "INSERT INTO show (id, name, vintage, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![id, name, vintage, now, now],
+        "INSERT INTO show (id, name, name_romaji, vintage, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![id, name, name_romaji, vintage, now, now],
     )
     .unwrap();
     id
@@ -564,6 +573,75 @@ fn test_search_play_history_by_both_ids() {
     .unwrap();
     assert_eq!(r["results"].as_array().unwrap().len(), 1);
     assert_eq!(r["results"][0]["media_url"], "url1");
+}
+
+#[test]
+fn test_search_show_by_name_romaji_exact_i() {
+    let mut c = test_conn();
+    insert_show_full(
+        &mut c,
+        "A Sign of Affection",
+        Some("Yubisaki to Renren"),
+        "Winter 2024",
+    );
+    insert_show_full(&mut c, "K-On!", None, "Spring 2009");
+    let r = commands::cmd_search(
+        &mut c,
+        "show",
+        r#"{"name_romaji":{"value":"yubisaki to renren","match":"exact-i"}}"#,
+        "id,name,name_romaji",
+    )
+    .unwrap();
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["name"], "A Sign of Affection");
+    assert_eq!(results[0]["name_romaji"], "Yubisaki to Renren");
+}
+
+#[test]
+fn test_search_show_by_name_romaji_contains() {
+    let mut c = test_conn();
+    insert_show_full(
+        &mut c,
+        "A Sign of Affection",
+        Some("Yubisaki to Renren"),
+        "Winter 2024",
+    );
+    insert_show_full(
+        &mut c,
+        "Another Show",
+        Some("Kimi no Suizou"),
+        "Spring 2018",
+    );
+    insert_show_full(&mut c, "No Romaji Show", None, "Fall 2020");
+    let r = commands::cmd_search(
+        &mut c,
+        "show",
+        r#"{"name_romaji":{"value":"yubisaki","match":"contains"}}"#,
+        "id,name,name_romaji",
+    )
+    .unwrap();
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["name"], "A Sign of Affection");
+}
+
+#[test]
+fn test_search_show_by_name_romaji_and_vintage() {
+    let mut c = test_conn();
+    insert_show_full(&mut c, "Show A", Some("Romaji A"), "Winter 2024");
+    insert_show_full(&mut c, "Show B", Some("Romaji A"), "Spring 2023");
+    let r = commands::cmd_search(
+        &mut c,
+        "show",
+        r#"{"name_romaji":{"value":"Romaji A","match":"exact-i"},"vintage":{"value":"Winter 2024"}}"#,
+        "id,name,vintage",
+    )
+    .unwrap();
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["name"], "Show A");
+    assert_eq!(results[0]["vintage"], "Winter 2024");
 }
 
 // === DUPLICATES ===

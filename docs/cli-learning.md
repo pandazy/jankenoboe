@@ -2,29 +2,23 @@
 
 Commands for spaced repetition and song memorization. See [CLI Reference](cli.md) for an overview of all commands.
 
+> **Usage examples and workflows:** See [learning-with-jankenoboe skill](../.claude/skills/learning-with-jankenoboe/SKILL.md) and [reviewing-due-songs skill](../.claude/skills/reviewing-due-songs/SKILL.md) for comprehensive examples, workflows, and output formats.
+
 ---
 
 ## jankenoboe learning-due
 
-Get all songs due for review based on spaced repetition rules. This is a special command because the due-for-review filter involves computed conditions that can't be expressed as a simple generic query.
+Get all songs due for review based on spaced repetition rules.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--limit` | No | Maximum number of results (default: 100) |
-| `--offset` | No | Look-ahead offset in seconds (default: 0). Shifts the reference time forward, e.g., `--offset 7200` finds songs due in the next 2 hours. |
-
-**Example:**
-```bash
-jankenoboe learning-due
-jankenoboe learning-due --limit 20
-jankenoboe learning-due --offset 7200          # due within the next 2 hours
-jankenoboe learning-due --offset 120 --limit 50 # due within the next 2 minutes
-```
+| `--offset` | No | Look-ahead offset in seconds (default: 0). Shifts the reference time forward. |
 
 **Due Filter Logic:**
 
-When `--offset` is provided, `now` in the SQL becomes `now + offset_seconds`. With `--offset 0` (default), the behavior is identical to the original.
+When `--offset` is provided, `now` in the SQL becomes `now + offset_seconds`.
 
 ```sql
 graduated = 0 AND (
@@ -37,22 +31,6 @@ graduated = 0 AND (
     -- Level > 0: use level_up_path[level] days
     (level > 0 AND (level_up_path[level] * 86400 + last_level_up_at) <= (now + offset))
 )
-```
-
-**Output:**
-```json
-{
-  "count": 13,
-  "results": [
-    {
-      "id": "5a1af77e-5d26-4b21-92f5-79f4d1332fef",
-      "song_id": "...",
-      "song_name": "1-nichi wa 25-jikan.",
-      "level": 16,
-      "wait_days": 135
-    }
-  ]
-}
 ```
 
 **Full SQL (with offset):**
@@ -75,13 +53,11 @@ WHERE l.graduated = 0
 ORDER BY l.level DESC;
 ```
 
-> When `--offset 0` (default), the `+ <offset>` term is omitted and the query is identical to comparing against `now`.
-
 ---
 
 ## jankenoboe learning-batch
 
-Add one or many songs to the learning system. Each song gets a new learning record with `level = 0`, `last_level_up_at = 0`, `graduated = 0`, and a generated `level_up_path` based on a Fibonacci easing curve.
+Add one or many songs to the learning system. Each song gets a new learning record with `level = 0`, `last_level_up_at = 0`, `graduated = 0`, and a generated `level_up_path`.
 
 **Options:**
 | Option | Required | Description |
@@ -90,67 +66,14 @@ Add one or many songs to the learning system. Each song gets a new learning reco
 | `--relearn-song-ids` | No | Comma-separated song UUIDs of graduated songs to re-learn |
 | `--relearn-start-level` | No | Starting level for re-learned songs (default: `7`, stored as 0-indexed) |
 
-**Example (single song):**
-```bash
-jankenoboe learning-batch --song-ids 3b105bd4-c437-4720-a373-660bd5d68532
-```
-
-**Example (multiple songs):**
-```bash
-jankenoboe learning-batch --song-ids song-uuid-1,song-uuid-2,song-uuid-3
-```
-
-**Output:**
-```json
-{
-  "created_ids": [
-    "generated-learning-uuid-1",
-    "generated-learning-uuid-2"
-  ],
-  "skipped_song_ids": [
-    "song-uuid-3"
-  ],
-  "already_graduated_song_ids": [
-    "song-uuid-4"
-  ]
-}
-```
-
-- `created_ids`: UUIDs of newly created learning records (includes both new songs and re-learned graduated songs)
-- `skipped_song_ids`: song UUIDs skipped because they already have an active (non-graduated) learning record
-- `already_graduated_song_ids`: song UUIDs with graduated records not included in `--relearn-song-ids`
-
 **Behavior:**
-- Each learning record is created with:
-  - `id`: generated UUID
-  - `song_id`: from the input
-  - `level`: `0`
-  - `created_at`: current Unix timestamp
-  - `updated_at`: current Unix timestamp
-  - `last_level_up_at`: `0` (never leveled up)
-  - `level_up_path`: generated JSON array (see [Level-Up Path Generation](#level-up-path-generation))
-  - `graduated`: `0`
-- All inserts are performed in a single transaction (all succeed or all fail)
+- All inserts are performed in a single transaction
+- Each record is created with: generated UUID, `level = 0`, current timestamps, `last_level_up_at = 0`, generated `level_up_path`, `graduated = 0`
 
-### Skip and Re-learn Rules
-
-1. **Active (non-graduated) record exists → skip**: Song is skipped, appears in `skipped_song_ids`.
-2. **Graduated record exists → requires confirmation**: Song appears in `already_graduated_song_ids`. Include it in `--relearn-song-ids` to confirm.
-3. **Graduated song confirmed for re-learning**: New record created starting from `--relearn-start-level` (default: `7`). Old graduated record preserved.
-
-**Typical two-step flow for graduated songs:**
-
-```bash
-# Step 1: Attempt to add songs (some may be graduated)
-jankenoboe learning-batch --song-ids song-new,song-active,song-graduated
-# Output: created_ids: ["..."], skipped_song_ids: ["song-active"], already_graduated_song_ids: ["song-graduated"]
-
-# Step 2: After user confirms, re-learn the graduated songs
-jankenoboe learning-batch --song-ids song-graduated --relearn-song-ids song-graduated
-
-# Step 2 (alternative): Re-learn with custom start level
-jankenoboe learning-batch --song-ids song-graduated --relearn-song-ids song-graduated --relearn-start-level 5
-```
+**Skip and Re-learn Rules:**
+1. **Active record exists → skip**: appears in `skipped_song_ids`
+2. **Graduated record exists → requires confirmation**: appears in `already_graduated_song_ids`; include in `--relearn-song-ids` to confirm
+3. **Graduated song confirmed**: new record created at `--relearn-start-level` (default 7); old record preserved
 
 **Error Cases:**
 | Condition | Exit Code | Output |
@@ -162,11 +85,7 @@ jankenoboe learning-batch --song-ids song-graduated --relearn-song-ids song-grad
 
 The `level_up_path` is a JSON array of wait-days generated using a **Fibonacci-based easing curve**:
 
-**Algorithm:**
-1. Compute Fibonacci: `fibo(0)=0, fibo(1)=1, fibo(n)=fibo(n-1)+fibo(n-2)`
-2. Shrink: `shrink(x) = x * 2 / 9` (integer division)
-3. Difference: wait-days = `shrink(fibo(n+1)) - shrink(fibo(n))`
-4. Floor: minimum 1-day wait
+**Algorithm:** `fibo(n)` → `shrink(x) = x * 2 / 9` → difference between consecutive values → floor at 1 day
 
 **Default path (20 levels):**
 ```json
@@ -176,12 +95,7 @@ The `level_up_path` is a JSON array of wait-days generated using a **Fibonacci-b
 | Stored Level | Display Level | Wait (days) | Cumulative (days) |
 |--------------|---------------|-------------|-------------------|
 | 0 | 1 | 1 | 1 |
-| 1 | 2 | 1 | 2 |
-| 2 | 3 | 1 | 3 |
-| 3 | 4 | 1 | 4 |
-| 4 | 5 | 1 | 5 |
-| 5 | 6 | 1 | 6 |
-| 6 | 7 | 1 | 7 |
+| 1–6 | 2–7 | 1 | 2–7 |
 | 7 | 8 | 2 | 9 |
 | 8 | 9 | 3 | 12 |
 | 9 | 10 | 5 | 17 |
@@ -198,58 +112,22 @@ The `level_up_path` is a JSON array of wait-days generated using a **Fibonacci-b
 
 > **Note:** "Stored Level" is 0-indexed (database/CLI). "Display Level" is stored_level + 1 (user-facing). See [Level Display Convention](concept.md#level-display-convention).
 
-The first 7 levels have 1-day intervals (warm-up), then intervals grow following the Fibonacci curve — reaching ~1.5 years of cumulative review time for a fully graduated song.
-
 ---
 
 ## jankenoboe learning-by-song-ids
 
-Get learning records for specific songs by their song IDs. Returns all learning records (both active and graduated) associated with the given song IDs, with song names and computed wait days. Uses JankenSQLHub's `:[song_ids]` list parameter for the `IN` clause.
+Get learning records for specific songs. Returns all records (active and graduated) with song names and computed wait days. Uses JankenSQLHub's `:[song_ids]` list parameter.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--song-ids` | Yes | Comma-separated song UUIDs |
 
-**Example:**
-```bash
-jankenoboe learning-by-song-ids --song-ids song-uuid-1
-jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2,song-uuid-3
-```
-
-**Output:**
-```json
-{
-  "count": 2,
-  "results": [
-    {
-      "id": "learning-uuid-1",
-      "song_id": "song-uuid-1",
-      "song_name": "Crossing Field",
-      "level": 10,
-      "graduated": 0,
-      "last_level_up_at": 1708900000,
-      "wait_days": 7
-    },
-    {
-      "id": "learning-uuid-2",
-      "song_id": "song-uuid-2",
-      "song_name": "Hikaru Nara",
-      "level": 19,
-      "graduated": 1,
-      "last_level_up_at": 1708800000,
-      "wait_days": 574
-    }
-  ]
-}
-```
-
 **Behavior:**
-- Returns all learning records whose `song_id` matches any of the provided IDs
-- Includes both active (`graduated = 0`) and graduated (`graduated = 1`) records
-- A single song may have multiple learning records (e.g., a graduated record and an active re-learn record)
-- Results are ordered by level descending (highest level first)
-- If a song has no learning records, it is simply not included in the results (no error)
+- Includes both active and graduated records
+- A single song may have multiple records (graduated + active re-learn)
+- Ordered by level descending
+- Songs with no learning records are absent (no error)
 
 **Error Cases:**
 | Condition | Exit Code | Output |
@@ -260,41 +138,12 @@ jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2,song-uuid-3
 
 ## jankenoboe learning-song-stats
 
-Get learning statistics per song, grouped by song ID. For each song, aggregates all learning records (including graduated and re-learn) to show the earliest start date, most recent review date, and how many days were spent learning the song. Uses JankenSQLHub's `:[song_ids]` list parameter for the `IN` clause.
+Get learning statistics per song. Groups all learning records by song and calculates the time span from earliest creation to most recent level-up.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--song-ids` | Yes | Comma-separated song UUIDs |
-
-**Example:**
-```bash
-jankenoboe learning-song-stats --song-ids song-uuid-1
-jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2,song-uuid-3
-```
-
-**Output:**
-```json
-{
-  "count": 2,
-  "results": [
-    {
-      "song_id": "song-uuid-1",
-      "song_name": "Crossing Field",
-      "earliest_created_at": 1700000000,
-      "latest_last_level_up_at": 1700864000,
-      "days_spent": 10
-    },
-    {
-      "song_id": "song-uuid-2",
-      "song_name": "Hikaru Nara",
-      "earliest_created_at": 1698000000,
-      "latest_last_level_up_at": 1700592000,
-      "days_spent": 30
-    }
-  ]
-}
-```
 
 **Fields:**
 | Field | Description |
@@ -302,121 +151,52 @@ jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2,song-uuid-3
 | `song_id` | Song UUID |
 | `song_name` | Song name |
 | `earliest_created_at` | Unix timestamp of the earliest learning record creation |
-| `latest_last_level_up_at` | Unix timestamp of the most recent level-up across all records |
-| `days_spent` | Absolute gap in days between earliest creation and most recent level-up (rounded) |
+| `latest_last_level_up_at` | Unix timestamp of the most recent level-up |
+| `days_spent` | `ROUND(ABS(MAX(last_level_up_at) - MIN(created_at)) / 86400)` |
 | `play_count` | Total number of play_history records for the song |
 
 **Behavior:**
-- Groups all learning records by `song_id` (including graduated and active re-learn records)
-- `days_spent` = `ROUND(ABS(MAX(last_level_up_at) - MIN(created_at)) / 86400)`
-- Results are ordered by `days_spent` descending (longest learning time first)
-- Songs with no learning records are not included in results (no error)
-
-**Error Cases:**
-| Condition | Exit Code | Output |
-|-----------|-----------|--------|
-| `--song-ids` is empty | 1 | `{"error": "song_ids cannot be empty"}` |
-
----
-
-### Related: Level Up/Down/Graduate via Update
-
-Level changes are performed using the generic `update` command from [Data Management](cli-data-management.md):
-
-```bash
-# Level up
-jankenoboe update learning <id> --data '{"level": 8}'
-
-# Level down
-jankenoboe update learning <id> --data '{"level": 3}'
-
-# Graduate
-jankenoboe update learning <id> --data '{"graduated": 1}'
-```
-
-When `level` is changed, `last_level_up_at` is automatically updated to the current timestamp.
+- Groups all learning records by `song_id` (including graduated and re-learn)
+- Ordered by `days_spent` descending
+- Songs with no learning records are absent (no error)
 
 ---
 
 ## jankenoboe learning-song-review
 
-Generate a self-contained HTML report of all songs currently due for review. The report is an offline file that can be opened in any browser — no server required.
-
-For each due song, the report enriches the data with:
-- **Artist name** (from the song's artist)
-- **Show names** (from `rel_show_song` → `show`)
-- **All media URLs** for the song (from both `rel_show_song` and `play_history`, deduplicated)
-
-The report includes client-side pagination and statistics (total count, level distribution).
+Generate a self-contained HTML report of all songs currently due for review.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--output` | No | Output file path (default: `learning-song-review.html` in current directory) |
-| `--limit` | No | Maximum number of due songs to include (default: 500) |
-| `--offset` | No | Look-ahead offset in seconds (default: 0). Same as `learning-due --offset`. |
+| `--limit` | No | Maximum number of due songs (default: 500) |
+| `--offset` | No | Look-ahead offset in seconds (default: 0) |
 
-**Example:**
-```bash
-jankenoboe learning-song-review
-jankenoboe learning-song-review --output ~/reports/review.html
-jankenoboe learning-song-review --limit 50
-jankenoboe learning-song-review --offset 7200   # include songs due within 2 hours
-```
-
-**Output (stdout):**
-```json
-{
-  "file": "/path/to/learning-song-review.html",
-  "count": 13,
-  "learning_ids": [
-    "5a1af77e-5d26-4b21-92f5-79f4d1332fef",
-    "..."
-  ]
-}
-```
-
-- `learning_ids`: Array of learning record UUIDs included in the report. Use these with `learning-song-levelup-ids` to level up exactly the songs shown in the report, avoiding race conditions from new due songs appearing between report generation and level-up.
+**Output includes `learning_ids`:** Array of learning record UUIDs in the report. Use with `learning-song-levelup-ids` to level up exactly the reviewed songs, avoiding race conditions.
 
 **HTML Report Features:**
-- Summary statistics: total due songs, level distribution breakdown
-- Each song card shows: song name, artist, level (display = stored + 1), wait days, show names, and clickable media URLs
-- Copyable IDs row per song: learning ID, song ID, and show ID(s) with one-click copy buttons
-- Client-side pagination (20 songs per page) for large lists
-- Songs sorted by level descending (highest level first)
-- Self-contained: no external dependencies, works offline
+- Summary statistics: total due songs, level distribution
+- Each song: name, artist, level (display = stored + 1), wait days, show names, clickable media URLs
+- Copyable IDs per song: learning ID, song ID, show ID(s) with one-click copy
+- Client-side pagination (20 per page), sorted by level descending
+- Self-contained, works offline
 
 ---
 
 ## jankenoboe learning-song-levelup-ids
 
-Level up specific learning records by their IDs. This command does **not** check whether songs are due — it levels up exactly the specified records. This is the race-condition-safe way to level up songs after reviewing a report.
+Level up specific learning records by their IDs. Does **not** check due status — levels up exactly the specified records. Race-condition-safe.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--ids` | Yes | Comma-separated learning record UUIDs |
 
-**Example:**
-```bash
-jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
-```
-
-**Output:**
-```json
-{
-  "leveled_up_count": 1,
-  "graduated_count": 1,
-  "total_processed": 2
-}
-```
-
 **Behavior:**
-- Validates that all specified IDs exist and are not already graduated
-- For each record with level < 19: increments level by 1, updates `last_level_up_at` and `updated_at`
-- For each record with level = 19: sets `graduated = 1`, updates `last_level_up_at` and `updated_at`
-- All updates are performed in a single transaction
-- Does **not** require songs to be due — works regardless of due status
+- Level < 19: increments level, updates `last_level_up_at` and `updated_at`
+- Level = 19: sets `graduated = 1`, updates timestamps
+- All updates in a single transaction
 
 **Error Cases:**
 | Condition | Exit Code | Output |
@@ -425,16 +205,16 @@ jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2
 | Any ID not found | 1 | `{"error": "learning record(s) not found: <ids>"}` |
 | Any ID already graduated | 1 | `{"error": "learning record already graduated: <id>"}` |
 
-**Typical workflow with `learning-song-review`:**
+---
+
+### Related: Level Up/Down/Graduate via Update
+
+Level changes can also be performed using `update` from [Data Management](cli-data-management.md):
 
 ```bash
-# Step 1: Generate review report (captures learning_ids at this moment)
-out=$(jankenoboe learning-song-review --output ~/review.html)
-# out: {"file":"...","count":13,"learning_ids":["id1","id2",...]}
-
-# Step 2: User reviews the HTML report in browser
-
-# Step 3: Level up exactly those songs (no race condition)
-ids=$(echo "$out" | jq -r '.learning_ids | join(",")')
-jankenoboe learning-song-levelup-ids --ids "$ids"
+jankenoboe update learning <id> --data '{"level": 8}'      # level up
+jankenoboe update learning <id> --data '{"level": 3}'      # level down
+jankenoboe update learning <id> --data '{"graduated": 1}'  # graduate
 ```
+
+When `level` is changed, `last_level_up_at` is automatically updated to the current timestamp.

@@ -271,6 +271,20 @@ assert_json_field "get show name_romaji" "$out" '.results[0].name_romaji' "Yubis
 assert_json_field "get show vintage" "$out" '.results[0].vintage' "Winter 2024"
 assert_json_field "get show s_type" "$out" '.results[0].s_type' "TV"
 
+# Search show by name_romaji (exact-i)
+out=$(jankenoboe search show --fields id,name,name_romaji --term '{"name_romaji":{"value":"yubisaki to renren","match":"exact-i"}}')
+ec=$?
+assert_exit_code "search show by name_romaji exits 0" 0 "$ec"
+assert_json_field "search show by name_romaji finds 1 result" "$out" '.results | length' "1"
+assert_json_field "search show by name_romaji name" "$out" '.results[0].name' "A Sign of Affection"
+assert_json_field "search show by name_romaji value" "$out" '.results[0].name_romaji' "Yubisaki to Renren"
+
+# Search show by name_romaji (contains)
+out=$(jankenoboe search show --fields id,name --term '{"name_romaji":{"value":"yubisaki","match":"contains"}}')
+ec=$?
+assert_exit_code "search show by name_romaji contains exits 0" 0 "$ec"
+assert_json_field "search show by name_romaji contains finds 1" "$out" '.results | length' "1"
+
 # Update show
 out=$(jankenoboe update show "$SHOW_ID" --data '{"name":"A Sign of Affection (Updated)"}')
 ec=$?

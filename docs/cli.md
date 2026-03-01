@@ -8,6 +8,13 @@ The CLI uses [JankenSQLHub](https://github.com/pandazy/jankensqlhub)'s `#[table]
 
 **Database path:** Set the `JANKENOBOE_DB` environment variable to your SQLite database file path (e.g., `export JANKENOBOE_DB=~/db/datasource.db`).
 
+### Documentation Structure
+
+- **`docs/cli-*.md`** — Developer technical reference: arguments, options, field tables, SQL, JankenSQLHub configs, algorithms, behavior notes, error cases
+- **`.claude/skills/`** — User-facing guides: comprehensive usage examples, workflows, output formats, step-by-step instructions
+
+Each CLI doc page links to the relevant skill(s) for examples and workflows.
+
 ## Tables
 
 | Table | Description |

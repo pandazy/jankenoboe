@@ -2,6 +2,8 @@
 
 Commands for reading and searching data. See [CLI Reference](cli.md) for an overview of all commands.
 
+> **Usage examples and workflows:** See [querying-jankenoboe skill](../.claude/skills/querying-jankenoboe/SKILL.md) for comprehensive examples including search patterns, match modes, and output formats.
+
 ---
 
 ## jankenoboe get \<table\> \<id\>
@@ -19,23 +21,14 @@ Retrieve a single record by its ID.
 |--------|----------|-------------|
 | `--fields` | Yes | Comma-separated list of field names to return |
 
-**Example:**
-```bash
-jankenoboe get song 3b105bd4-c437-4720-a373-660bd5d68532 --fields id,name,artist_id
-```
-
-**Output:**
-```json
-{
-  "results": [
-    {
-      "id": "3b105bd4-c437-4720-a373-660bd5d68532",
-      "name": "Fuwa Fuwa Time (5-nin Ver.)",
-      "artist_id": "2196b222-ed04-4260-90c8-d18382bf8900"
-    }
-  ]
-}
-```
+**Selectable fields per table:**
+| Table | Fields |
+|-------|--------|
+| `artist` | `id`, `name`, `name_context`, `created_at`, `updated_at`, `status` |
+| `show` | `id`, `name`, `name_romaji`, `vintage`, `s_type`, `created_at`, `updated_at`, `status` |
+| `song` | `id`, `name`, `name_context`, `artist_id`, `created_at`, `updated_at`, `status` |
+| `play_history` | `id`, `show_id`, `song_id`, `created_at`, `media_url`, `status` |
+| `learning` | `id`, `song_id`, `level`, `created_at`, `updated_at`, `last_level_up_at`, `level_up_path`, `graduated` |
 
 **JankenSQLHub Query Definition:**
 ```json
@@ -70,7 +63,7 @@ Search records using a structured `--term` JSON parameter. Each key in the term 
 **Arguments:**
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `table` | Yes | Table name (`artist`, `show`, `song`, `play_history`, or `rel_show_song`) |
+| `table` | Yes | Table name (`artist`, `show`, `song`, `play_history`, `rel_show_song`, or `learning`) |
 
 **Options:**
 | Option | Required | Description |
@@ -85,25 +78,9 @@ Search records using a structured `--term` JSON parameter. Each key in the term 
 }
 ```
 
-The `match` field is optional and defaults to `exact` (case-sensitive). When only `value` is needed with the default match, you can omit `match`:
-```json
-{
-  "<column>": { "value": "<search_text>" }
-}
-```
+The `match` field is optional and defaults to `exact` (case-sensitive).
 
-**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded before use. This avoids shell quoting issues with special characters like quotes, spaces, and parentheses. Use Python's `urllib.parse.quote(text, safe="")` or the included helper:
-
-```bash
-# Encode a value
-python3 tools/url_encode.py "it's a test"
-# Output: it%27s%20a%20test
-
-# Use in search
-jankenoboe search artist --fields id,name --term '{"name":{"value":"it%27s%20a%20test"}}'
-```
-
-Plain text values (without `%` sequences) work unchanged — encoding is only needed for values containing shell-problematic characters like `'`, `"`, `(`, `)`, `&`, `!`, spaces, etc.
+**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing shell-problematic characters.
 
 **Match modes:**
 | Mode | Default | SQL Pattern | Description |
@@ -118,75 +95,27 @@ Plain text values (without `%` sequences) work unchanged — encoding is only ne
 | Table | Columns |
 |-------|---------|
 | `artist` | `name`, `name_context` |
-| `show` | `name`, `vintage` |
+| `show` | `name`, `name_romaji`, `vintage` |
 | `song` | `name`, `name_context`, `artist_id` |
 | `play_history` | `show_id`, `song_id` |
 | `rel_show_song` | `show_id`, `song_id` |
 
-**Examples:**
-```bash
-# Find artist by exact name (case-sensitive, default match mode)
-jankenoboe search artist --fields id,name --term '{"name": {"value": "ChoQMay"}}'
+**Implementation:** The CLI validates column names against the searchable whitelist, dynamically builds the WHERE clause, and uses JankenSQLHub `#[table]`/`~[fields]` with `enumif` for field validation, preventing SQL injection via column names.
 
-# Find artist by name (case-insensitive)
-jankenoboe search artist --fields id,name --term '{"name": {"value": "minami", "match": "exact-i"}}'
-
-# Find show by name + vintage (both exact)
-jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "K-On!"}, "vintage": {"value": "Spring 2009"}}'
-
-# Find song by name + artist_id
-jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "snowspring", "match": "exact-i"}, "artist_id": {"value": "abc123"}}'
-
-# List all songs by artist
-jankenoboe search song --fields id,name,artist_id --term '{"artist_id": {"value": "abc123"}}'
-
-# Check if show and song are linked
-jankenoboe search rel_show_song --fields show_id,song_id,media_url --term '{"show_id": {"value": "<show-uuid>"}, "song_id": {"value": "<song-uuid>"}}'
-
-# Find play history records by song
-jankenoboe search play_history --fields id,show_id,song_id,media_url --term '{"song_id": {"value": "<song-uuid>"}}'
-
-# Find play history records by show and song
-jankenoboe search play_history --fields id,media_url --term '{"show_id": {"value": "<show-uuid>"}, "song_id": {"value": "<song-uuid>"}}'
-
-# Find artists whose name starts with "min"
-jankenoboe search artist --fields id,name --term '{"name": {"value": "min", "match": "starts-with"}}'
-
-# Find shows from 2024 with "sign" in the name (multiple AND conditions)
-jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "sign", "match": "contains"}, "vintage": {"value": "2024", "match": "ends-with"}}'
-
-# Find songs whose name contains "love"
-jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "love", "match": "contains"}}'
-```
-
-**Implementation:**
-
-The CLI parses the `--term` JSON, validates column names against the table's allowed searchable columns, and dynamically builds the WHERE clause. Fuzzy modes (`starts-with`, `ends-with`, `contains`) and `exact-i` use `LOWER()` for case-insensitive matching; `exact` is case-sensitive. The query is executed using JankenSQLHub with `#[table]` and `~[fields]` with `enumif` for field validation.
-
-**Searchable column validation** uses the same `enumif` pattern as other queries to ensure only allowed columns can be searched per table, preventing SQL injection via column names.
-
+**Searchable column validation (JankenSQLHub enumif):**
 ```json
 {
   "searchable_columns": {
     "enumif": {
       "table": {
         "artist": ["name", "name_context"],
-        "show": ["name", "vintage"],
+        "show": ["name", "name_romaji", "vintage"],
         "song": ["name", "name_context", "artist_id"],
         "play_history": ["show_id", "song_id"],
         "rel_show_song": ["show_id", "song_id"]
       }
     }
   }
-}
-```
-
-**Output (all search commands):**
-```json
-{
-  "results": [
-    {"id": "...", "name": "snowspring", "artist_id": "..."}
-  ]
 }
 ```
 
@@ -201,70 +130,24 @@ Find records with case-insensitive matching names for data quality review.
 |----------|----------|-------------|
 | `table` | Yes | Table name (`artist`, `show`, or `song`) |
 
-**Example:**
-```bash
-jankenoboe duplicates artist
-```
-
-**Output:**
-```json
-{
-  "duplicates": [
-    {
-      "name": "minami",
-      "records": [
-        {"id": "14b7393a-...", "name": "Minami", "song_count": 5},
-        {"id": "6136d7b3-...", "name": "Minami", "song_count": 3}
-      ]
-    }
-  ]
-}
-```
-
-**Note:** Duplicates may be legitimate (e.g., two real artists with the same name). This command surfaces them for human review.
+**Behavior:**
+- For `artist` and `song` tables: includes a `song_count` subquery
+- For `show` table: `song_count` is always `0`
+- Only includes records with `status = 0` (non-deleted)
+- Duplicates may be legitimate (e.g., two real artists with the same name)
 
 ---
 
 ## jankenoboe shows-by-artist-ids --artist-ids
 
-Get all shows where the given artists have song performances. This traverses the `artist → song → rel_show_song → show` relationship chain and returns one row per artist-show-song combination.
+Get all shows where the given artists have song performances. Traverses `artist → song → rel_show_song → show`.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--artist-ids` | Yes | Comma-separated artist UUIDs |
 
-**Example:**
-```bash
-jankenoboe shows-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
-```
-
-**Output:**
-```json
-{
-  "count": 3,
-  "results": [
-    {
-      "show_id": "sh-uuid-1",
-      "show_name": "Boku no Hero Academia",
-      "vintage": "Spring 2016",
-      "song_id": "song-uuid-1",
-      "song_name": "Crying for Rain",
-      "artist_id": "artist-uuid-1",
-      "artist_name": "Minami"
-    },
-    {
-      "show_id": "sh-uuid-2",
-      "show_name": "Kimetsu no Yaiba",
-      "vintage": "Spring 2019",
-      "song_id": "song-uuid-2",
-      "song_name": "Viva La Vida",
-      "artist_id": "artist-uuid-1",
-      "artist_name": "Minami"
-    }
-  ]
-}
-```
+**Returns:** `show_id`, `show_name`, `vintage`, `song_id`, `song_name`, `artist_id`, `artist_name`
 
 **JankenSQLHub Query Definition:**
 ```json
@@ -279,48 +162,23 @@ jankenoboe shows-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
 }
 ```
 
-**Notes:**
-- Results are ordered by artist name, then show name, then song name
-- If an artist has multiple songs in the same show, each song appears as a separate row
-- Artists with no linked shows (no `rel_show_song` entries for their songs) return zero results
-- Nonexistent artist IDs are silently ignored (return zero results)
+**Behavior:**
+- One row per artist-show-song combination, ordered by artist name → show name → song name
+- Artists with no linked shows return zero results
+- Nonexistent artist IDs are silently ignored
 
 ---
 
 ## jankenoboe songs-by-artist-ids --artist-ids
 
-Get all songs by the given artists. This traverses the `artist → song` relationship and returns one row per song with artist details.
+Get all songs by the given artists. Traverses `artist → song`.
 
 **Options:**
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--artist-ids` | Yes | Comma-separated artist UUIDs |
 
-**Example:**
-```bash
-jankenoboe songs-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
-```
-
-**Output:**
-```json
-{
-  "count": 3,
-  "results": [
-    {
-      "song_id": "song-uuid-1",
-      "song_name": "Crying for Rain",
-      "artist_id": "artist-uuid-1",
-      "artist_name": "Minami"
-    },
-    {
-      "song_id": "song-uuid-2",
-      "song_name": "Viva La Vida",
-      "artist_id": "artist-uuid-1",
-      "artist_name": "Minami"
-    }
-  ]
-}
-```
+**Returns:** `song_id`, `song_name`, `artist_id`, `artist_name`
 
 **JankenSQLHub Query Definition:**
 ```json
@@ -335,7 +193,7 @@ jankenoboe songs-by-artist-ids --artist-ids artist-uuid-1,artist-uuid-2
 }
 ```
 
-**Notes:**
-- Results are ordered by artist name, then song name
+**Behavior:**
+- One row per song with artist details, ordered by artist name → song name
 - Artists with no songs return zero results
-- Nonexistent artist IDs are silently ignored (return zero results)
+- Nonexistent artist IDs are silently ignored

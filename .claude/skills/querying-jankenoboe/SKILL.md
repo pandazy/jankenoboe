@@ -114,6 +114,12 @@ jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "sign
 
 # Songs whose name contains "love"
 jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "love", "match": "contains"}}'
+
+# Find show by romaji name (case-insensitive)
+jankenoboe search show --fields id,name,name_romaji --term '{"name_romaji": {"value": "yubisaki to renren", "match": "exact-i"}}'
+
+# Shows whose romaji name contains "kimi"
+jankenoboe search show --fields id,name,name_romaji,vintage --term '{"name_romaji": {"value": "kimi", "match": "contains"}}'
 ```
 
 **Searchable columns per table:**
@@ -121,7 +127,7 @@ jankenoboe search song --fields id,name,artist_id --term '{"name": {"value": "lo
 | Table | Columns |
 |-------|---------|
 | artist | name, name_context |
-| show | name, vintage |
+| show | name, name_romaji, vintage |
 | song | name, name_context, artist_id |
 | play_history | show_id, song_id |
 | rel_show_song | show_id, song_id |
