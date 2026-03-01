@@ -706,6 +706,7 @@ fn test_learning_song_stats_single_song_single_record() {
     assert_eq!(r["results"][0]["earliest_created_at"], 1700000000);
     assert_eq!(r["results"][0]["latest_last_level_up_at"], 1700864000);
     assert_eq!(r["results"][0]["days_spent"], 10);
+    assert_eq!(r["results"][0]["play_count"], 0);
 }
 
 #[test]
@@ -729,6 +730,7 @@ fn test_learning_song_stats_multiple_records_per_song() {
     assert_eq!(r["results"][0]["latest_last_level_up_at"], 1703000000);
     // ABS(1703000000 - 1700000000) / 86400 = 34.7... ≈ 35 days
     assert_eq!(r["results"][0]["days_spent"], 35);
+    assert_eq!(r["results"][0]["play_count"], 0);
 }
 
 #[test]
@@ -747,8 +749,10 @@ fn test_learning_song_stats_multiple_songs() {
     // Ordered by days_spent DESC
     assert_eq!(r["results"][0]["song_name"], "Song1");
     assert_eq!(r["results"][0]["days_spent"], 20);
+    assert_eq!(r["results"][0]["play_count"], 0);
     assert_eq!(r["results"][1]["song_name"], "Song2");
     assert_eq!(r["results"][1]["days_spent"], 5);
+    assert_eq!(r["results"][1]["play_count"], 0);
 }
 
 #[test]
@@ -787,6 +791,44 @@ fn test_learning_song_stats_abs_gap_when_last_level_up_is_zero() {
     assert_eq!(r["count"], 1);
     assert_eq!(r["results"][0]["latest_last_level_up_at"], 0);
     assert_eq!(r["results"][0]["days_spent"], 19676);
+    assert_eq!(r["results"][0]["play_count"], 0);
+}
+
+#[test]
+fn test_learning_song_stats_with_play_history() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    insert_learning_raw(&mut c, &sid, 5, now, now, now, 0);
+
+    // Add a show and some play_history records
+    let show_id = uuid::Uuid::new_v4().to_string();
+    c.execute(
+        "INSERT INTO show (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![show_id, "TestShow", now, now],
+    )
+    .unwrap();
+
+    let ph1 = uuid::Uuid::new_v4().to_string();
+    let ph2 = uuid::Uuid::new_v4().to_string();
+    let ph3 = uuid::Uuid::new_v4().to_string();
+    c.execute(
+        "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![ph1, show_id, sid, "https://example.com/a.webm", now],
+    ).unwrap();
+    c.execute(
+        "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![ph2, show_id, sid, "https://example.com/b.webm", now],
+    ).unwrap();
+    c.execute(
+        "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![ph3, show_id, sid, "https://example.com/c.webm", now],
+    ).unwrap();
+
+    let r = commands::cmd_learning_song_stats(&mut c, &sid).unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["play_count"], 3);
 }
 
 // === SQL INJECTION PREVENTION ===

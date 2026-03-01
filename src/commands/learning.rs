@@ -321,12 +321,17 @@ pub fn cmd_learning_song_review(
                 .map_err(AppError::from)?;
 
         let mut show_names: Vec<String> = Vec::new();
+        let mut show_ids: Vec<String> = Vec::new();
         let mut media_urls: Vec<String> = Vec::new();
 
         for show_row in &show_result.data {
             let show_name = show_row["show_name"].as_str().unwrap_or("").to_string();
+            let show_id_val = show_row["show_id"].as_str().unwrap_or("").to_string();
             if !show_name.is_empty() && !show_names.contains(&show_name) {
                 show_names.push(show_name);
+            }
+            if !show_id_val.is_empty() && !show_ids.contains(&show_id_val) {
+                show_ids.push(show_id_val);
             }
             if let Some(url) = show_row["media_url"].as_str()
                 && !url.is_empty()
@@ -350,12 +355,18 @@ pub fn cmd_learning_song_review(
             }
         }
 
+        let learning_id = row["id"].as_str().unwrap_or("").to_string();
+        let song_id_str = song_id.to_string();
+
         songs.push(EnrichedSong {
+            learning_id,
+            song_id: song_id_str,
             song_name: song_name.to_string(),
             level,
             wait_days,
             artist_name,
             show_names,
+            show_ids,
             media_urls,
         });
     }
@@ -585,14 +596,15 @@ pub fn cmd_learning_song_stats(
             "query": "SELECT l.song_id, s.name AS song_name, \
                       MIN(l.created_at) AS earliest_created_at, \
                       MAX(l.last_level_up_at) AS latest_last_level_up_at, \
-                      CAST(ROUND(ABS(MAX(l.last_level_up_at) - MIN(l.created_at)) / 86400.0) AS INTEGER) AS days_spent \
+                      CAST(ROUND(ABS(MAX(l.last_level_up_at) - MIN(l.created_at)) / 86400.0) AS INTEGER) AS days_spent, \
+                      (SELECT COUNT(*) FROM play_history ph WHERE ph.song_id = l.song_id) AS play_count \
                       FROM learning l \
                       JOIN song s ON l.song_id = s.id \
                       WHERE l.song_id IN :[song_ids] \
                       GROUP BY l.song_id \
                       ORDER BY days_spent DESC",
             "returns": ["song_id", "song_name", "earliest_created_at",
-                        "latest_last_level_up_at", "days_spent"],
+                        "latest_last_level_up_at", "days_spent", "play_count"],
             "args": {
                 "song_ids": {"itemtype": "string"}
             }
@@ -658,12 +670,17 @@ fn build_review_html(
                     json!({"url": escape_html(url), "ext": ext})
                 })
                 .collect();
+            let show_ids_escaped: Vec<String> =
+                s.show_ids().iter().map(|id| escape_html(id)).collect();
             json!({
+                "learningId": escape_html(s.learning_id()),
+                "songId": escape_html(s.song_id()),
                 "name": escape_html(s.song_name()),
                 "artist": escape_html(s.artist_name()),
                 "level": s.level() + 1,
                 "waitDays": s.wait_days(),
                 "shows": shows_joined,
+                "showIds": show_ids_escaped,
                 "mediaUrls": media_urls
             })
         })
@@ -679,25 +696,37 @@ fn build_review_html(
 
 /// Data fields for a song in the review report.
 struct EnrichedSong {
+    learning_id: String,
+    song_id: String,
     song_name: String,
     level: i64,
     wait_days: i64,
     artist_name: String,
     show_names: Vec<String>,
+    show_ids: Vec<String>,
     media_urls: Vec<String>,
 }
 
 /// Trait for accessing song review data fields (enables testability).
 trait SongReviewData {
+    fn learning_id(&self) -> &str;
+    fn song_id(&self) -> &str;
     fn song_name(&self) -> &str;
     fn level(&self) -> i64;
     fn wait_days(&self) -> i64;
     fn artist_name(&self) -> &str;
     fn show_names(&self) -> &[String];
+    fn show_ids(&self) -> &[String];
     fn media_urls(&self) -> &[String];
 }
 
 impl SongReviewData for EnrichedSong {
+    fn learning_id(&self) -> &str {
+        &self.learning_id
+    }
+    fn song_id(&self) -> &str {
+        &self.song_id
+    }
     fn song_name(&self) -> &str {
         &self.song_name
     }
@@ -712,6 +741,9 @@ impl SongReviewData for EnrichedSong {
     }
     fn show_names(&self) -> &[String] {
         &self.show_names
+    }
+    fn show_ids(&self) -> &[String] {
+        &self.show_ids
     }
     fn media_urls(&self) -> &[String] {
         &self.media_urls
@@ -802,15 +834,24 @@ mod tests {
     // --- build_review_html ---
 
     struct TestSong {
+        learning_id: String,
+        song_id: String,
         name: String,
         level: i64,
         wait_days: i64,
         artist: String,
         shows: Vec<String>,
+        show_ids: Vec<String>,
         urls: Vec<String>,
     }
 
     impl SongReviewData for TestSong {
+        fn learning_id(&self) -> &str {
+            &self.learning_id
+        }
+        fn song_id(&self) -> &str {
+            &self.song_id
+        }
         fn song_name(&self) -> &str {
             &self.name
         }
@@ -825,6 +866,9 @@ mod tests {
         }
         fn show_names(&self) -> &[String] {
             &self.shows
+        }
+        fn show_ids(&self) -> &[String] {
+            &self.show_ids
         }
         fn media_urls(&self) -> &[String] {
             &self.urls
@@ -844,11 +888,14 @@ mod tests {
     #[test]
     fn test_build_review_html_with_songs() {
         let songs = vec![TestSong {
+            learning_id: "lid-1".into(),
+            song_id: "song-1".into(),
             name: "Test Song".into(),
             level: 5,
             wait_days: 3,
             artist: "Test Artist".into(),
             shows: vec!["Show A".into()],
+            show_ids: vec!["show-id-1".into()],
             urls: vec!["https://example.com/video.webm".into()],
         }];
         let mut dist = std::collections::BTreeMap::new();
@@ -867,11 +914,14 @@ mod tests {
     #[test]
     fn test_build_review_html_no_media() {
         let songs = vec![TestSong {
+            learning_id: "lid-2".into(),
+            song_id: "song-2".into(),
             name: "No Media Song".into(),
             level: 0,
             wait_days: 1,
             artist: "Artist".into(),
             shows: vec![],
+            show_ids: vec![],
             urls: vec![],
         }];
         let mut dist = std::collections::BTreeMap::new();
@@ -883,11 +933,14 @@ mod tests {
     #[test]
     fn test_build_review_html_html_escaping() {
         let songs = vec![TestSong {
+            learning_id: "lid-3".into(),
+            song_id: "song-3".into(),
             name: "<script>alert('xss')</script>".into(),
             level: 0,
             wait_days: 1,
             artist: "O'Brien & Co".into(),
             shows: vec!["Show <1>".into()],
+            show_ids: vec!["show-id-xss".into()],
             urls: vec![],
         }];
         let mut dist = std::collections::BTreeMap::new();

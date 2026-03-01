@@ -48,6 +48,7 @@ AMQ exports JSON files with guessed song records. See `docs/amq_song_export-samp
 - AMQ exports provide both `animeNames.english` and `animeNames.romaji` for each show
 - Always compare AMQ's `animeNames.english` with our `name` field for primary matching
 - The `romaji` name is optional supplementary info — stored in `name_romaji` when creating a show, but not used as the primary search criterion
+- **Romaji backfill:** When a show is found but its `name_romaji` is empty, and the import JSON provides a romaji name, the import script automatically fills in the missing romaji name
 - A show is uniquely identified by its English name combined with its vintage (season)
 - Example: "K-On!" (Spring 2009) and "K-On!" (Spring 2010) are different shows (Season 1 vs Season 2)
 

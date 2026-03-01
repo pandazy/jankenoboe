@@ -304,6 +304,7 @@ jankenoboe learning-song-stats --song-ids song-uuid-1,song-uuid-2,song-uuid-3
 | `earliest_created_at` | Unix timestamp of the earliest learning record creation |
 | `latest_last_level_up_at` | Unix timestamp of the most recent level-up across all records |
 | `days_spent` | Absolute gap in days between earliest creation and most recent level-up (rounded) |
+| `play_count` | Total number of play_history records for the song |
 
 **Behavior:**
 - Groups all learning records by `song_id` (including graduated and active re-learn records)
@@ -380,6 +381,7 @@ jankenoboe learning-song-review --offset 7200   # include songs due within 2 hou
 **HTML Report Features:**
 - Summary statistics: total due songs, level distribution breakdown
 - Each song card shows: song name, artist, level (display = stored + 1), wait days, show names, and clickable media URLs
+- Copyable IDs row per song: learning ID, song ID, and show ID(s) with one-click copy buttons
 - Client-side pagination (20 songs per page) for large lists
 - Songs sorted by level descending (highest level first)
 - Self-contained: no external dependencies, works offline

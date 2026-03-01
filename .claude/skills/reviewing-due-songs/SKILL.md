@@ -45,6 +45,7 @@ jankenoboe learning-song-review --offset 7200   # include songs due within 2 hou
 The HTML report includes:
 - Summary statistics (total count, level distribution)
 - Each song with: name, artist, level (display = stored + 1), wait days, show names, clickable media URLs
+- Copyable IDs row per song: learning ID, song ID, and show ID(s) with one-click copy buttons
 - Client-side pagination (20 songs per page)
 - Sorted by level descending (highest level first)
 - Self-contained — no external dependencies, works offline

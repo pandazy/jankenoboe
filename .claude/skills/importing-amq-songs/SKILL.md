@@ -113,14 +113,20 @@ Use `animeNames.english` as the `name` value (case-insensitive match):
 jankenoboe search show --fields id,name,vintage --term '{"name": {"value": "<english-name>", "match": "exact-i"}, "vintage": {"value": "<vintage>"}}'
 ```
 
-- **Not found** → CONFIRM with user, then create (store english as `name`, romaji as `name_romaji`):
+- **Not found** → CONFIRM with user, then create. **Always include `name_romaji`** if the AMQ export provides `animeNames.romaji`:
   ```bash
   jankenoboe create show --data '{"name": "<english-name>", "name_romaji": "<romaji>", "vintage": "<vintage>", "s_type": "<animeType>"}'
   ```
+  > ⚠️ Do NOT omit `name_romaji` — it is important for search and display. If the AMQ export has a romaji name, always include it when creating a new show.
 - **Found** → Use the matched show's `id`. If stored `name` differs in casing from AMQ's English name, update:
   ```bash
   jankenoboe update show <show-id> --data '{"name": "<english-name>"}'
   ```
+  Also, if the existing show has an empty `name_romaji` and the AMQ export provides one, backfill it:
+  ```bash
+  jankenoboe update show <show-id> --data '{"name_romaji": "<romaji>"}'
+  ```
+  > The automated import script (`import_amq.py`) does this romaji backfill automatically. When importing manually, remember to check and fill it yourself.
 
 ##### Resolve Song
 
