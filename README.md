@@ -2,7 +2,7 @@
 
 An anime song learning system that tracks songs from [animemusicquiz.com](https://animemusicquiz.com) and uses spaced repetition to help memorize them. The name combines "janken" (the creator's alias on AMQ) with "oboe" (覚え, memory/memorization in Japanese).
 
-Non-technical users interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that call `jankenoboe` CLI commands. The CLI is a Rust binary that provides fast, validated database operations with JSON output.
+Users interact through AI agents (e.g., Claude with [Agent Skills](#agent-skills-claude)) that call `jankenoboe` CLI commands. The CLI is a Rust binary that provides fast, validated database operations with JSON output.
 
 ## Agent Skills (Claude)
 

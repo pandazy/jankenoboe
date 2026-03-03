@@ -1,16 +1,6 @@
 # AGENTS.md — Jankenoboe
 
-> Context file for AI coding agents working on this repository.
-
-## Project Summary
-
-Jankenoboe is an anime song learning system powered by a local SQLite database. It tracks songs encountered in quiz games on [animemusicquiz.com](https://animemusicquiz.com) and uses spaced repetition to help memorize them.
-
-Non-technical users interact through AI agents (e.g., Claude with Agent Skills) that call `jankenoboe` CLI commands. The CLI is a Rust binary that provides fast, validated database operations with JSON output, using [JankenSQLHub](https://github.com/pandazy/jankensqlhub) for parameterized SQL query management with `enum`/`enumif` constraints for security.
-
-**Database:** The SQLite database file lives outside the project directory (e.g., `~/db/datasource.db`). Initialize with `sqlite3 ~/db/datasource.db < docs/init-db.sql`. Set `JANKENOBOE_DB` to the database path before using the CLI.
-
-The project name combines "janken" (the creator's alias on AMQ) with "oboe" (覚え, memory/memorization in Japanese).
+> Development context for AI coding agents working on this repository. For project overview, installation, CLI usage, and agent skills, see [README.md](README.md).
 
 ## Build, Test, and Run
 
@@ -63,7 +53,26 @@ src/
 ├── table_config.rs  # Centralized per-table field configuration (single source of truth)
 ├── lib.rs           # Library root
 └── error.rs         # Error types and exit code mapping
+```
 
+### Module Responsibilities
+
+| Module | Purpose | Key Functions |
+|--------|---------|---------------|
+| `main.rs` | CLI entry point and argument parsing | `main()`, Clap configuration |
+| `commands/mod.rs` | Module root, re-exports all public command functions | Re-exports from submodules |
+| `commands/querying.rs` | Read-only query commands | `cmd_get`, `cmd_search`, `cmd_duplicates`, `cmd_shows_by_artist_ids`, `cmd_songs_by_artist_ids` |
+| `commands/learning.rs` | Spaced repetition commands | `cmd_learning_due`, `cmd_learning_batch`, `cmd_learning_song_review`, `cmd_learning_song_levelup_ids`, `cmd_learning_by_song_ids` |
+| `commands/data_management.rs` | CRUD and bulk operations | `cmd_create`, `cmd_update`, `cmd_delete`, `cmd_bulk_reassign` |
+| `commands/helpers.rs` | Shared utilities | `json_value_to_sql` |
+| `db.rs` | Database connection management | Connection setup, datasource.db initialization |
+| `easing.rs` | Fibonacci-based level_up_path generation | `generate_level_up_path()` |
+| `encoding.rs` | URL percent-decoding for --term and --data values | `url_decode()` |
+| `models.rs` | Business-layer validation wrappers | Table/field validation, parse helpers |
+| `table_config.rs` | Centralized per-table field configuration | Single source of truth for selectable/searchable/creatable/updatable fields |
+| `error.rs` | Error handling and exit codes | Custom error types, exit code mapping |
+
+```
 tools/
 └── url_encode.py # Python helper to URL percent-encode values for CLI args
 
@@ -122,10 +131,15 @@ Commands are organized by category:
 
 ### JankenSQLHub Integration
 
+For full query syntax and parameter validation details, see the [JankenSQLHub usage skill](https://github.com/pandazy/jankensqlhub/blob/main/.claude/skills/using-jankensqlhub/SKILL.md).
+
+- Use JankenSQLHub's parameter validation to prevent SQL injection
 - `#[table]` with `enum` constraints for safe dynamic table names
 - `~[fields]` with `enumif` for per-table field validation
-- `@param` defaults to string type
-- All queries are JSON-configured via `QueryDef`
+- `enum`/`enumif` constraints to whitelist valid values per context
+- `@param` defaults to string type — no need for `{"type": "string"}`
+- Build queries using JankenSQLHub's `QueryDef` (JSON-configured)
+- Execute queries using the appropriate runner (SQLite in this case)
 
 ## Coding Conventions
 
@@ -185,20 +199,28 @@ Songs are imported from animemusicquiz.com JSON exports. The flow resolves artis
 
 ## Agent Skills (Claude)
 
-The `.claude/skills/` directory contains [Claude Agent Skills](https://code.claude.com/docs/en/skills) for interacting with the database via CLI commands.
+The `.claude/skills/` directory contains [Claude Agent Skills](https://code.claude.com/docs/en/skills) for interacting with the database via CLI commands. See [README.md](README.md#agent-skills-claude) for the full skills table.
 
-| Skill | File | Description |
-|-------|------|-------------|
-| initialize | [.claude/skills/initialize/SKILL.md](.claude/skills/initialize/SKILL.md) | Set up environment: verify CLI, check `JANKENOBOE_DB`, guide first-time DB creation (referenced by all other skills) |
-| querying-jankenoboe | [.claude/skills/querying-jankenoboe/SKILL.md](.claude/skills/querying-jankenoboe/SKILL.md) | Search/read: artists, shows, songs, learning, due reviews, duplicates |
-| learning-with-jankenoboe | [.claude/skills/learning-with-jankenoboe/SKILL.md](.claude/skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: batch add, level up/down, graduate, re-learn |
-| maintaining-jankenoboe-data | [.claude/skills/maintaining-jankenoboe-data/SKILL.md](.claude/skills/maintaining-jankenoboe-data/SKILL.md) | CRUD: create/update/delete, bulk reassign, merge duplicates |
-| reviewing-due-songs | [.claude/skills/reviewing-due-songs/SKILL.md](.claude/skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
-| importing-amq-songs | [.claude/skills/importing-amq-songs/SKILL.md](.claude/skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
+## Routines
+
+To understand the repository's purpose, always check `README.md` first.
 
 ## Task Management
 
 - Progress files: `_progress_<task_name>.md`
 - When starting a task, read the progress file first (create if missing)
 - Save progress if context window is exceeded, ensuring content is clear for another agent to resume
-- When updating documents, check `README.md`, `AGENTS.md`, `.clinerules`, and `docs/*.md` for consistency
+- When updating documents, check `README.md`, `AGENTS.md`, and `docs/*.md` for consistency
+
+### TODO List Usage
+
+When starting a new task, create a todo list to track progress:
+- Use markdown checklist format: `- [ ]` for incomplete, `- [x]` for complete
+- Include a comprehensive checklist of all steps needed
+- Keep the list updated as you make progress
+
+**Benefits:**
+- Clear roadmap for implementation
+- Progress tracking throughout the task
+- Nothing gets forgotten or missed
+- Users can see, monitor, and edit the plan
