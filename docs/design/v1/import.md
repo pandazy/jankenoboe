@@ -8,7 +8,7 @@ For step-by-step CLI commands, see the [importing-amq-songs skill](../.claude/sk
 
 ## Export Format
 
-AMQ exports JSON files with guessed song records. See `docs/amq_song_export-sample.json` for an example.
+AMQ exports JSON files with guessed song records. See `docs/design/v1/amq_song_export-small.json` for an example.
 
 **Key fields per song:**
 ```json

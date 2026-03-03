@@ -5,22 +5,9 @@ description: Import anime song data from animemusicquiz.com JSON exports into Ja
 
 ## Setup
 
-### Prerequisites
+Follow the [initialize skill](../initialize/SKILL.md) to ensure the CLI is installed and `JANKENOBOE_DB` is set.
 
-- **`jankenoboe` CLI** must be installed (see [README.md](../../../README.md))
-- **Python 3** is required for the import scripts. macOS includes Python 3 by default; if not available, install via `brew install python3`
-
-### Database Path
-
-Before running commands, check if `JANKENOBOE_DB` is already set:
-```bash
-echo $JANKENOBOE_DB
-```
-
-- **If it prints a path** (e.g., `/Users/you/db/datasource.db`): proceed directly with `jankenoboe` commands.
-- **If it prints nothing (empty)**: ask the user for the database path, then either:
-  - Export it for the session: `export JANKENOBOE_DB=/path/to/datasource.db`
-  - Or prefix each command: `JANKENOBOE_DB=/path/to/datasource.db jankenoboe ...`
+**Additional prerequisite:** Python 3 is required for the import scripts. macOS includes Python 3 by default; if not available, install via `brew install python3`.
 
 ---
 

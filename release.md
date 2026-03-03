@@ -1,24 +1,22 @@
-## v2.5.1
+## v2.5.2
 
-### Search: Romaji Name Support for Shows
+### New: `initialize` Agent Skill
 
-The `search show` command now supports searching by `name_romaji`, enabling lookups of shows by their Japanese romaji names. All match modes are supported: `exact`, `exact-i`, `starts-with`, `ends-with`, and `contains`.
+Added a dedicated `initialize` skill (`.claude/skills/initialize/SKILL.md`) that all other skills now reference. It provides a 4-step setup flow:
 
-```bash
-# Find show by romaji name (case-insensitive)
-jankenoboe search show --fields id,name,name_romaji --term '{"name_romaji":{"value":"yubisaki to renren","match":"exact-i"}}'
+1. Verify CLI installation
+2. Check `JANKENOBOE_DB` (only prompts if unset)
+3. Verify database file exists
+4. First-time database creation (with safety warning against running on existing databases)
 
-# Find shows whose romaji name contains "kimi"
-jankenoboe search show --fields id,name,name_romaji,vintage --term '{"name_romaji":{"value":"kimi","match":"contains"}}'
-```
+This prevents agents from unnecessarily setting `JANKENOBOE_DB` when it's already configured.
 
-### Documentation: Consolidate docs/ and skills/
+### Documentation Reorganization
 
-Reduced duplication between `docs/cli-*.md` and `.claude/skills/` by establishing clear ownership:
-- **`docs/cli-*.md`** — Developer technical reference (args, options, field tables, SQL, algorithms, error cases)
-- **`.claude/skills/`** — User-facing guides (usage examples, workflows, output formats)
-
-Each CLI doc page now links to the relevant skill(s) for examples. Removed redundant command examples and output samples from docs.
+- Moved design docs (`concept.md`, `development.md`, `import.md`, `structure.md`) into versioned `docs/design/v1/` folder
+- Renamed `amq_song_export-sample.json` → `amq_song_export-small.json`
+- Simplified README: removed redundant setup walkthrough, linking to the initialize skill instead
+- All 5 existing skills now use a single-line setup reference instead of inline DB path instructions
 
 ## Installation
 
