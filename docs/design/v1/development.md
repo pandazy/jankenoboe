@@ -212,5 +212,4 @@ When starting a new task:
 When asked to update documents, check if any of the following have out-of-sync facts:
 - README.md
 - AGENTS.md
-- .clinerules
 - docs/*.md

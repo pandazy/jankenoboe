@@ -1,22 +1,24 @@
-## v2.5.2
+## v2.5.3
 
-### New: `initialize` Agent Skill
+### Consolidated `.clinerules` into `AGENTS.md`
 
-Added a dedicated `initialize` skill (`.claude/skills/initialize/SKILL.md`) that all other skills now reference. It provides a 4-step setup flow:
+Merged all content from `.clinerules` into `AGENTS.md` and deleted the file, eliminating redundancy between the two configuration files.
 
-1. Verify CLI installation
-2. Check `JANKENOBOE_DB` (only prompts if unset)
-3. Verify database file exists
-4. First-time database creation (with safety warning against running on existing databases)
+**Key changes:**
+- `AGENTS.md` is now the single source of truth for developer/agent guidelines (architecture, conventions, domain concepts, JankenSQLHub integration)
+- `README.md` remains the operator-facing entry point (project intro, installation, CLI usage, agent skills)
+- Added [JankenSQLHub usage skill](https://github.com/pandazy/jankensqlhub/blob/main/.claude/skills/using-jankensqlhub/SKILL.md) reference for developers
+- Replaced outdated database setup instructions with a link to the initialize skill
+- Removed "Non-technical users" phrasing
 
-This prevents agents from unnecessarily setting `JANKENOBOE_DB` when it's already configured.
+### Files Changed
 
-### Documentation Reorganization
-
-- Moved design docs (`concept.md`, `development.md`, `import.md`, `structure.md`) into versioned `docs/design/v1/` folder
-- Renamed `amq_song_export-sample.json` → `amq_song_export-small.json`
-- Simplified README: removed redundant setup walkthrough, linking to the initialize skill instead
-- All 5 existing skills now use a single-line setup reference instead of inline DB path instructions
+| File | Change |
+|------|--------|
+| `.clinerules` | Deleted (merged into AGENTS.md) |
+| `AGENTS.md` | Consolidated: developer-focused, no duplicated intro/skills table |
+| `README.md` | Wording fix ("Non-technical users" → "Users") |
+| `docs/design/v1/development.md` | Removed `.clinerules` from docs checklist |
 
 ## Installation
 
