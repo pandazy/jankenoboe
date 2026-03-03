@@ -10,23 +10,16 @@ The `.claude/skills/` directory contains [Claude Agent Skills](https://code.clau
 
 | Skill | Description |
 |-------|-------------|
+| [initialize](.claude/skills/initialize/SKILL.md) | Set up environment: verify CLI, check `JANKENOBOE_DB`, guide first-time DB creation (referenced by all other skills) |
 | [querying-jankenoboe](.claude/skills/querying-jankenoboe/SKILL.md) | Search and read artists, shows, songs, learning records, due reviews, duplicates |
 | [learning-with-jankenoboe](.claude/skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: add songs, level up/down, graduate, check due reviews |
 | [maintaining-jankenoboe-data](.claude/skills/maintaining-jankenoboe-data/SKILL.md) | CRUD operations: create/update/delete records, bulk reassign, merge duplicates |
 | [reviewing-due-songs](.claude/skills/reviewing-due-songs/SKILL.md) | Display due review songs with show names, song names, and media URLs |
 | [importing-amq-songs](.claude/skills/importing-amq-songs/SKILL.md) | Import AMQ song exports: resolve artists, shows, songs, create play history |
 
-## Prerequisites
-
-- **SQLite 3** — the database engine
-  - macOS: `brew install sqlite` (or pre-installed)
-  - Ubuntu/Debian: `sudo apt install sqlite3`
-
 ## Installation
 
 ### Option 1: Install from GitHub (recommended)
-
-Download the pre-built binary for your platform:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/install.sh | sh
@@ -36,13 +29,9 @@ This detects your OS/architecture and installs `jankenoboe` to `~/.local/bin/`. 
 
 ### Option 2: Install via Cargo
 
-If you have Rust 1.70+ installed:
-
 ```bash
 cargo install --git https://github.com/pandazy/jankenoboe.git
 ```
-
-This builds from source and installs `jankenoboe` to `~/.cargo/bin/`.
 
 ### Option 3: Build from source
 
@@ -50,83 +39,30 @@ This builds from source and installs `jankenoboe` to `~/.cargo/bin/`.
 git clone https://github.com/pandazy/jankenoboe.git
 cd jankenoboe
 cargo build --release
-# Binary at target/release/jankenoboe — copy it to your PATH
 cp target/release/jankenoboe ~/.local/bin/
 ```
 
-## Upgrading
+### Upgrading
 
-To upgrade to the latest version, simply re-run the install script. It always fetches and installs the latest release, overwriting any existing binary — there is no version check or "already up to date" skip.
+Re-run the install script — it always fetches the latest release:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/install.sh | sh
 ```
 
-If you installed via Cargo:
-
-```bash
-cargo install --git https://github.com/pandazy/jankenoboe.git --force
-```
-
-## Uninstallation
-
-### If installed via install.sh or manual copy
+### Uninstalling
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pandazy/jankenoboe/main/uninstall.sh | sh
 ```
 
-Or run locally: `sh uninstall.sh`
-
-This removes the `jankenoboe` binary from `~/.local/bin/` and `~/.cargo/bin/`. Your database and shell configuration are preserved.
-
-### If installed via Cargo
-
-```bash
-cargo uninstall jankenoboe
-```
-
-### Optional cleanup
-
-After uninstalling, you may also want to:
-
-```bash
-# Remove the database
-rm ~/db/datasource.db
-
-# Remove JANKENOBOE_DB from your shell profile (~/.zshrc, ~/.bashrc, etc.)
-```
+Or if installed via Cargo: `cargo uninstall jankenoboe`
 
 ## Setup
 
-### 1. Create the database
+For first-time setup (database creation, environment variable, initial data import), follow the [initialize skill](.claude/skills/initialize/SKILL.md). It walks through prerequisites, database path configuration, and optional song import.
 
-The database file lives **outside** the project directory (e.g., `~/db/datasource.db`). Create it from the schema:
-
-```bash
-mkdir -p ~/db
-sqlite3 ~/db/datasource.db < docs/init-db.sql
-```
-
-This creates all tables, indexes, and constraints. See [docs/init-db.sql](docs/init-db.sql) for the full schema.
-
-### 2. Set the database path
-
-Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
-
-```bash
-export JANKENOBOE_DB=~/db/datasource.db
-```
-
-### 3. Import your song data
-
-1. Play a round on [animemusicquiz.com](https://animemusicquiz.com)
-2. After the game, export your song list as JSON (see [sample export](docs/amq_song_export-sample.json) for the format)
-3. Give the exported JSON file to your AI agent and ask it to import the songs — the agent will resolve artists, shows, and songs, creating records as needed (see [Import Workflow](docs/import.md) for details)
-
-### 4. Start using it
-
-Point your AI agent (e.g., Claude) to the `.claude/skills/` directory and tell it the path to your database file. The agent uses `jankenoboe` CLI commands to interact with the database. You can also use the CLI directly (see [CLI](#cli) below).
+If you're using an AI agent (e.g., Claude), point it to the `.claude/skills/` directory — the agent will follow the initialize skill automatically before running any commands.
 
 ## CLI
 
@@ -226,7 +162,7 @@ See the full [CLI Reference](docs/cli.md) for all commands, options, and query d
   - [Querying Commands](docs/cli-querying.md) - get, search, duplicates
   - [Learning Commands](docs/cli-learning.md) - learning-due, learning-batch
   - [Data Management Commands](docs/cli-data-management.md) - create, update, delete, bulk-reassign
-- [Core Concepts](docs/concept.md) - Data model, relationships, and spaced repetition system
-- [Import Workflow](docs/import.md) - AMQ song export import process and conflict resolution
-- [Project Structure](docs/structure.md) - Directory layout, database schema, and dependencies
-- [Development](docs/development.md) - Guidelines, testing, and code quality standards
+- [Core Concepts](docs/design/v1/concept.md) - Data model, relationships, and spaced repetition system
+- [Import Workflow](docs/design/v1/import.md) - AMQ song export import process and conflict resolution
+- [Project Structure](docs/design/v1/structure.md) - Directory layout, database schema, and dependencies
+- [Development](docs/design/v1/development.md) - Guidelines, testing, and code quality standards

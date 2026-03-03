@@ -5,19 +5,7 @@ description: Display anime songs that are due for spaced repetition review as a 
 
 ## Setup
 
-The `jankenoboe` CLI must be installed.
-
-### Database Path
-
-Before running commands, check if `JANKENOBOE_DB` is already set:
-```bash
-echo $JANKENOBOE_DB
-```
-
-- **If it prints a path** (e.g., `/Users/you/db/datasource.db`): proceed directly with `jankenoboe` commands.
-- **If it prints nothing (empty)**: ask the user for the database path, then either:
-  - Export it for the session: `export JANKENOBOE_DB=/path/to/datasource.db`
-  - Or prefix each command: `JANKENOBOE_DB=/path/to/datasource.db jankenoboe ...`
+Follow the [initialize skill](../initialize/SKILL.md) to ensure the CLI is installed and `JANKENOBOE_DB` is set.
 
 ---
 

@@ -167,7 +167,7 @@ Levels are 0-indexed in the database/CLI but displayed as 1-indexed to users. Th
 
 ### AMQ Import Workflow
 
-Songs are imported from animemusicquiz.com JSON exports. The flow resolves artists (with namesake disambiguation), shows (by name + vintage), and songs (by name + artist) before creating play history records. See `docs/import.md` for the full workflow.
+Songs are imported from animemusicquiz.com JSON exports. The flow resolves artists (with namesake disambiguation), shows (by name + vintage), and songs (by name + artist) before creating play history records. See `docs/design/v1/import.md` for the full workflow.
 
 ## Documentation Map
 
@@ -178,10 +178,10 @@ Songs are imported from animemusicquiz.com JSON exports. The flow resolves artis
 | [docs/cli-querying.md](docs/cli-querying.md) | Querying commands: get, search, duplicates |
 | [docs/cli-learning.md](docs/cli-learning.md) | Learning commands: learning-due, learning-batch |
 | [docs/cli-data-management.md](docs/cli-data-management.md) | Data management: create, update, delete, bulk-reassign |
-| [docs/concept.md](docs/concept.md) | Data model, relationships, spaced repetition system |
-| [docs/import.md](docs/import.md) | AMQ song export import process and conflict resolution |
-| [docs/structure.md](docs/structure.md) | Directory layout, database schema, dependencies |
-| [docs/development.md](docs/development.md) | Development guidelines, testing, code quality |
+| [docs/design/v1/concept.md](docs/design/v1/concept.md) | Data model, relationships, spaced repetition system |
+| [docs/design/v1/import.md](docs/design/v1/import.md) | AMQ song export import process and conflict resolution |
+| [docs/design/v1/structure.md](docs/design/v1/structure.md) | Directory layout, database schema, dependencies |
+| [docs/design/v1/development.md](docs/design/v1/development.md) | Development guidelines, testing, code quality |
 
 ## Agent Skills (Claude)
 
@@ -189,6 +189,7 @@ The `.claude/skills/` directory contains [Claude Agent Skills](https://code.clau
 
 | Skill | File | Description |
 |-------|------|-------------|
+| initialize | [.claude/skills/initialize/SKILL.md](.claude/skills/initialize/SKILL.md) | Set up environment: verify CLI, check `JANKENOBOE_DB`, guide first-time DB creation (referenced by all other skills) |
 | querying-jankenoboe | [.claude/skills/querying-jankenoboe/SKILL.md](.claude/skills/querying-jankenoboe/SKILL.md) | Search/read: artists, shows, songs, learning, due reviews, duplicates |
 | learning-with-jankenoboe | [.claude/skills/learning-with-jankenoboe/SKILL.md](.claude/skills/learning-with-jankenoboe/SKILL.md) | Spaced repetition: batch add, level up/down, graduate, re-learn |
 | maintaining-jankenoboe-data | [.claude/skills/maintaining-jankenoboe-data/SKILL.md](.claude/skills/maintaining-jankenoboe-data/SKILL.md) | CRUD: create/update/delete, bulk reassign, merge duplicates |
