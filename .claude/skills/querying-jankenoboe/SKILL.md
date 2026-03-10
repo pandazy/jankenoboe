@@ -46,6 +46,38 @@ jankenoboe get song 3b105bd4-c437-4720-a373-660bd5d68532 --fields id,name,artist
 }
 ```
 
+---
+
+## Batch Get by IDs
+
+Retrieve multiple records by their UUIDs. Batch version of `get`.
+
+```bash
+jankenoboe batch-get <table> --ids <comma-separated-uuids> --fields <comma-separated-fields>
+```
+
+**Example:**
+```bash
+jankenoboe batch-get artist --ids uuid-1,uuid-2,uuid-3 --fields id,name
+```
+
+**Output:**
+```json
+{
+  "count": 3,
+  "results": [
+    {"id": "uuid-1", "name": "Minami"},
+    {"id": "uuid-2", "name": "LiSA"},
+    {"id": "uuid-3", "name": "Aimer"}
+  ]
+}
+```
+
+**Notes:**
+- Nonexistent IDs are silently ignored (no error)
+- No guaranteed ordering of results
+- Same tables and fields as `get`
+
 ### Available fields per table
 
 | Table | Fields |

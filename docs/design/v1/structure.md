@@ -7,8 +7,8 @@ src/
 ├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
 ├── commands/        # Subcommand implementations (split by category)
 │   ├── mod.rs             # Module root, re-exports all public command functions
-│   ├── querying.rs        # get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
-│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, levelup-ids, by-song-ids
+│   ├── querying.rs        # get, batch-get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
+│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, graduate-ids, levelup-ids, by-song-ids, song-stats
 │   ├── data_management.rs # create, update, delete, bulk-reassign
 │   └── helpers.rs         # Shared utilities (e.g., json_value_to_sql)
 ├── db.rs            # Database connection management
@@ -27,10 +27,12 @@ docs/
 ├── concept.md          # Core concepts and data model
 ├── structure.md        # Project structure and database schema (this file)
 ├── development.md      # Development guidelines
-├── import.md           # AMQ song import workflow
-└── archived_tasks/     # Completed task documentation
+└── import.md           # AMQ song import workflow
+
+archived_tasks/          # Completed task documentation
 
 .claude/skills/
+├── initialize/SKILL.md                # Environment setup: verify CLI, check DB, guide creation
 ├── querying-jankenoboe/SKILL.md       # Search/read: artists, shows, songs, learning, duplicates
 ├── learning-with-jankenoboe/SKILL.md  # Spaced repetition: batch add, level up/down, graduate
 ├── maintaining-jankenoboe-data/SKILL.md  # CRUD: create/update/delete, bulk reassign, merge
@@ -40,6 +42,7 @@ docs/
     └── scripts/                       # Import helper scripts
         ├── parse_amq_import.py
         ├── import_amq.py
+        ├── test_import_amq.py
         ├── check_artists.sh
         └── check_shows.sh
 

@@ -231,61 +231,114 @@ def resolve_entry(song_entry):
     return resolved
 
 
+def _missing_pattern(entry):
+    """Return a tuple of missing entity types for an entry."""
+    missing = []
+    if entry["artist_id"] is None:
+        missing.append("artist")
+    if entry["show_id"] is None:
+        missing.append("show")
+    if entry["song_id"] is None:
+        missing.append("song")
+    return tuple(missing)
+
+
+def _resolved_label(pattern):
+    """Human-readable label for what's resolved."""
+    all_entities = {"artist", "show", "song"}
+    resolved = sorted(all_entities - set(pattern))
+    if not resolved:
+        return ""
+    return " (" + " and ".join(resolved) + " resolved)"
+
+
 def print_missing_report(missing_entries):
-    """Print a grouped report of entries with missing entities."""
+    """Print a grouped report of entries with missing entities.
+
+    Groups entries by their missing pattern (which combination of
+    artist/show/song is missing). Each entry shows resolved IDs so
+    follow-up procedures can reuse them without re-fetching.
+    """
     print("\n=== Missing Entities Report ===")
     print(f"Total entries with missing data:" f" {len(missing_entries)}\n")
 
-    # Group by missing entity type
-    missing_artists = []
-    missing_shows = []
-    missing_songs = []
+    # Collect unique missing entities (deduplicated)
+    missing_artists = set()
+    missing_shows = set()
+    missing_songs = set()
 
     for entry in missing_entries:
         for item in entry["missing"]:
             if item.startswith("artist:"):
-                missing_artists.append(item)
+                missing_artists.add(item)
             elif item.startswith("show:"):
-                missing_shows.append(item)
+                missing_shows.add(item)
             elif item.startswith("song:"):
-                missing_songs.append(item)
-
-    # Deduplicate
-    missing_artists = sorted(set(missing_artists))
-    missing_shows = sorted(set(missing_shows))
-    missing_songs = sorted(set(missing_songs))
+                missing_songs.add(item)
 
     if missing_artists:
-        print(f"Missing artists ({len(missing_artists)}):")
-        for a in missing_artists:
+        print(
+            f"Missing artists ({len(missing_artists)}):"
+        )
+        for a in sorted(missing_artists):
             print(f"  - {a}")
         print()
 
     if missing_shows:
         print(f"Missing shows ({len(missing_shows)}):")
-        for s in missing_shows:
+        for s in sorted(missing_shows):
             print(f"  - {s}")
         print()
 
     if missing_songs:
         print(f"Missing songs ({len(missing_songs)}):")
-        for s in missing_songs:
+        for s in sorted(missing_songs):
             print(f"  - {s}")
         print()
 
-    # Detailed per-entry breakdown
-    print("--- Per-entry details ---")
+    # Group entries by missing pattern
+    from collections import OrderedDict
+
+    groups = OrderedDict()
     for entry in missing_entries:
-        label = (
-            f"\"{entry['song_name']}\""
-            f" by {entry['artist_name']}"
-            f" from {entry['show_name']}"
-            f" ({entry['vintage']})"
-        )
-        print(f"  {label}")
-        for m in entry["missing"]:
-            print(f"    \u2717 {m}")
-    print()
+        pattern = _missing_pattern(entry)
+        groups.setdefault(pattern, []).append(entry)
+
+    # Print each group with resolved IDs
+    for pattern, entries in groups.items():
+        label = "missing " + ", ".join(pattern)
+        label += _resolved_label(pattern)
+        print(f"--- {label} ---")
+        for entry in entries:
+            desc = (
+                f"\"{entry['song_name']}\""
+                f" by {entry['artist_name']}"
+                f" from {entry['show_name']}"
+                f" ({entry['vintage']})"
+            )
+            print(f"  {desc}")
+
+            # Print resolved IDs
+            if entry["artist_id"]:
+                print(
+                    f"    \u2713 artist_id:"
+                    f" {entry['artist_id']}"
+                )
+            if entry["show_id"]:
+                print(
+                    f"    \u2713 show_id:"
+                    f" {entry['show_id']}"
+                )
+            if entry["song_id"]:
+                print(
+                    f"    \u2713 song_id:"
+                    f" {entry['song_id']}"
+                )
+
+            # Print what's missing
+            for m in entry["missing"]:
+                print(f"    \u2717 {m}")
+        print()
 
 
 def process_complete_entries(complete_entries, missing_only):

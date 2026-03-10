@@ -1,24 +1,24 @@
-## v2.5.3
+## v2.6.0
 
-### Consolidated `.clinerules` into `AGENTS.md`
+### New: `batch-get` command
 
-Merged all content from `.clinerules` into `AGENTS.md` and deleted the file, eliminating redundancy between the two configuration files.
+Batch version of `get` — retrieve multiple records by IDs in a single call. Accepts `--ids` (comma-separated UUIDs) and `--fields`, returns `{"count": N, "results": [...]}`. Nonexistent IDs are silently ignored.
 
-**Key changes:**
-- `AGENTS.md` is now the single source of truth for developer/agent guidelines (architecture, conventions, domain concepts, JankenSQLHub integration)
-- `README.md` remains the operator-facing entry point (project intro, installation, CLI usage, agent skills)
-- Added [JankenSQLHub usage skill](https://github.com/pandazy/jankensqlhub/blob/main/.claude/skills/using-jankensqlhub/SKILL.md) reference for developers
-- Replaced outdated database setup instructions with a link to the initialize skill
-- Removed "Non-technical users" phrasing
+```bash
+jankenoboe batch-get artist --ids uuid-1,uuid-2 --fields id,name
+```
 
-### Files Changed
+### New: `learning-song-graduate-ids` command
 
-| File | Change |
-|------|--------|
-| `.clinerules` | Deleted (merged into AGENTS.md) |
-| `AGENTS.md` | Consolidated: developer-focused, no duplicated intro/skills table |
-| `README.md` | Wording fix ("Non-technical users" → "Users") |
-| `docs/design/v1/development.md` | Removed `.clinerules` from docs checklist |
+Directly graduate specific learning records by their IDs. Sets level to max (19) and `graduated = 1` in a single atomic transaction, regardless of current level. Validates that records exist and aren't already graduated.
+
+```bash
+jankenoboe learning-song-graduate-ids --ids learning-uuid-1,learning-uuid-2
+```
+
+### Improved: Import missing report with resolved IDs
+
+The AMQ import script's Missing Entities Report now groups entries by their missing pattern and includes already-resolved IDs. For example, if only the song is missing, the report shows the resolved `artist_id` and `show_id` — follow-up procedures can directly create the song and link it without re-fetching.
 
 ## Installation
 

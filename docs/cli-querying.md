@@ -56,6 +56,73 @@ Retrieve a single record by its ID.
 
 ---
 
+## jankenoboe batch-get \<table\> --ids --fields
+
+Retrieve multiple records by their IDs. Batch version of `get`.
+
+**Arguments:**
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `table` | Yes | Table name (`artist`, `show`, `song`, `play_history`, `learning`) |
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--ids` | Yes | Comma-separated record UUIDs |
+| `--fields` | Yes | Comma-separated list of field names to return |
+
+**Selectable fields per table:** Same as `get` (see table above).
+
+**Behavior:**
+- Returns all found records; nonexistent IDs are silently ignored
+- No guaranteed ordering of results
+
+**Error Cases:**
+| Condition | Exit Code | Output |
+|-----------|-----------|--------|
+| `--ids` is empty | 1 | `{"error": "ids cannot be empty"}` |
+| `--fields` is empty | 1 | `{"error": "fields cannot be empty"}` |
+| Invalid table | 1 | `{"error": "Invalid table: ..."}` |
+| Invalid field | 1 | `{"error": "Invalid field: ..."}` |
+
+**JankenSQLHub Query Definition:**
+```json
+{
+  "batch_read_by_ids": {
+    "query": "SELECT ~[fields] FROM #[table] WHERE id IN :[ids]",
+    "returns": "~[fields]",
+    "args": {
+      "table": {"enum": ["artist", "show", "song", "play_history", "learning"]},
+      "fields": {
+        "enumif": {
+          "table": {
+            "artist": ["id", "name", "name_context", "created_at", "updated_at", "status"],
+            "show": ["id", "name", "name_romaji", "vintage", "s_type", "created_at", "updated_at", "status"],
+            "song": ["id", "name", "name_context", "artist_id", "created_at", "updated_at", "status"],
+            "play_history": ["id", "show_id", "song_id", "created_at", "media_url", "status"],
+            "learning": ["id", "song_id", "level", "created_at", "updated_at", "last_level_up_at", "level_up_path", "graduated"]
+          }
+        }
+      },
+      "ids": {"itemtype": "string"}
+    }
+  }
+}
+```
+
+**Output:**
+```json
+{
+  "count": 2,
+  "results": [
+    {"id": "...", "name": "...", ...},
+    {"id": "...", "name": "...", ...}
+  ]
+}
+```
+
+---
+
 ## jankenoboe search \<table\> --term
 
 Search records using a structured `--term` JSON parameter. Each key in the term map is a column name, and its value specifies the search value and match mode. Multiple keys are combined with AND.

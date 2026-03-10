@@ -742,6 +742,38 @@ assert_json_field "level after review+levelup flow" "$out" '.results[0].level' "
 
 echo ""
 
+# ---- 20. Learning song graduate-ids ----
+printf "${YELLOW}--- Learning Song Graduate IDs ---${NC}\n"
+
+# Create artist, song, and learning record at level 5
+A_NAME="graduate-ids-artist-$(date +%s)"
+out=$(jankenoboe create artist --data "{\"name\": \"$A_NAME\"}")
+A_ID=$(echo "$out" | jq -r '.id')
+out=$(jankenoboe create song --data "{\"name\": \"graduate-ids-song\", \"artist_id\": \"$A_ID\"}")
+S_ID=$(echo "$out" | jq -r '.id')
+batch_out=$(jankenoboe learning-batch --song-ids "$S_ID")
+L_ID=$(echo "$batch_out" | jq -r '.created_ids[0]')
+
+# Graduate directly
+out=$(jankenoboe learning-song-graduate-ids --ids "$L_ID"); ec=$?
+assert_exit_code "graduate-ids exits 0" 0 "$ec"
+assert_json_field "graduate-ids graduated_count" "$out" '.graduated_count' "1"
+
+# Verify level=19, graduated=1
+out=$(jankenoboe get learning "$L_ID" --fields level,graduated)
+assert_json_field "graduate-ids level is 19" "$out" '.results[0].level' "19"
+assert_json_field "graduate-ids graduated is 1" "$out" '.results[0].graduated' "1"
+
+# Trying to graduate-ids an already graduated record should fail
+jankenoboe learning-song-graduate-ids --ids "$L_ID" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+stderr=$(cat /tmp/e2e_stderr)
+assert_exit_code "graduate-ids already graduated exits 1" 1 "$ec"
+assert_output_contains "graduate-ids already graduated shows error" "$stderr" "graduated"
+
+# Empty ids should fail
+jankenoboe learning-song-graduate-ids --ids "" 2>/tmp/e2e_stderr 1>/dev/null; ec=$?
+assert_exit_code "graduate-ids empty ids exits 1" 1 "$ec"
+
 # ---- 21. Learning by song IDs ----
 printf "${YELLOW}--- Learning by Song IDs ---${NC}\n"
 reset_db

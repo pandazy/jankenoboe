@@ -523,6 +523,95 @@ pub fn cmd_learning_song_levelup_ids(
 }
 
 // ---------------------------------------------------------------------------
+// learning-song-graduate-ids --ids
+// ---------------------------------------------------------------------------
+
+pub fn cmd_learning_song_graduate_ids(
+    conn: &mut Connection,
+    ids_str: &str,
+) -> Result<Value, AppError> {
+    let ids: Vec<&str> = ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if ids.is_empty() {
+        return Err(AppError::InvalidParameter("ids cannot be empty".into()));
+    }
+
+    let query_json = json!({
+        "get_learning_record": {
+            "query": "SELECT id, level, graduated FROM learning WHERE id=@id",
+            "returns": ["id", "level", "graduated"],
+            "args": {
+                "id": {}
+            }
+        },
+        "graduate": {
+            "query": "UPDATE learning SET level=@max_level, graduated=1, updated_at=@now, last_level_up_at=@now WHERE id=@id",
+            "args": {
+                "max_level": {"type": "integer"},
+                "now": {"type": "integer"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    // Fetch current state for each ID, verify they exist and are not graduated
+    let mut record_ids: Vec<String> = Vec::new();
+    let mut not_found_ids: Vec<String> = Vec::new();
+
+    for id in &ids {
+        let params = json!({"id": id});
+        let result = jankensqlhub::query_run_sqlite(conn, &queries, "get_learning_record", &params)
+            .map_err(AppError::from)?;
+
+        if result.data.is_empty() {
+            not_found_ids.push(id.to_string());
+            continue;
+        }
+
+        let row = &result.data[0];
+        let record_id = row["id"].as_str().unwrap_or("").to_string();
+        let graduated = row["graduated"].as_i64().unwrap_or(0);
+
+        if graduated == 1 {
+            return Err(AppError::InvalidParameter(format!(
+                "learning record already graduated: {record_id}"
+            )));
+        }
+        record_ids.push(record_id);
+    }
+
+    if !not_found_ids.is_empty() {
+        return Err(AppError::NotFound(format!(
+            "learning record(s) not found: {}",
+            not_found_ids.join(", ")
+        )));
+    }
+
+    let now = models::now_unix();
+    let max_level = MAX_LEVEL as i64 - 1; // stored 0-indexed: 19
+
+    let tx = conn.transaction()?;
+
+    for id in &record_ids {
+        let params = json!({"id": id, "max_level": max_level, "now": now});
+        jankensqlhub::query_run_sqlite_with_transaction(&tx, &queries, "graduate", &params)
+            .map_err(AppError::from)?;
+    }
+
+    tx.commit()?;
+
+    Ok(json!({
+        "graduated_count": record_ids.len()
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // learning-by-song-ids --song-ids
 // ---------------------------------------------------------------------------
 

@@ -156,6 +156,128 @@ fn test_get_learning_record() {
     assert_eq!(r["results"][0]["graduated"], 0);
 }
 
+// === BATCH GET ===
+
+#[test]
+fn test_batch_get_multiple_artists() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Alpha");
+    let a2 = insert_artist(&mut c, "Beta");
+    insert_artist(&mut c, "Gamma");
+    let r = commands::cmd_batch_get(&mut c, "artist", &format!("{a1},{a2}"), "id,name").unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2);
+    let names: Vec<&str> = results
+        .iter()
+        .map(|r| r["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"Alpha"));
+    assert!(names.contains(&"Beta"));
+}
+
+#[test]
+fn test_batch_get_single_id() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Solo");
+    let r = commands::cmd_batch_get(&mut c, "artist", &a1, "id,name").unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["name"], "Solo");
+}
+
+#[test]
+fn test_batch_get_songs() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "Song1", &aid);
+    let s2 = insert_song(&mut c, "Song2", &aid);
+    let r = commands::cmd_batch_get(&mut c, "song", &format!("{s1},{s2}"), "id,name,artist_id")
+        .unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    assert_eq!(results[0]["artist_id"], aid);
+    assert_eq!(results[1]["artist_id"], aid);
+}
+
+#[test]
+fn test_batch_get_nonexistent_ids_ignored() {
+    let mut c = test_conn();
+    let a1 = insert_artist(&mut c, "Real");
+    let r =
+        commands::cmd_batch_get(&mut c, "artist", &format!("{a1},no-such-id"), "id,name").unwrap();
+    assert_eq!(r["count"], 1);
+    assert_eq!(r["results"][0]["name"], "Real");
+}
+
+#[test]
+fn test_batch_get_all_nonexistent() {
+    let mut c = test_conn();
+    let r = commands::cmd_batch_get(&mut c, "artist", "no-id-1,no-id-2", "id,name").unwrap();
+    assert_eq!(r["count"], 0);
+    assert_eq!(r["results"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn test_batch_get_empty_ids() {
+    let mut c = test_conn();
+    let err = commands::cmd_batch_get(&mut c, "artist", "", "id,name")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "ids cannot be empty");
+}
+
+#[test]
+fn test_batch_get_empty_fields() {
+    let mut c = test_conn();
+    let err = commands::cmd_batch_get(&mut c, "artist", "some-id", "")
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "fields cannot be empty");
+}
+
+#[test]
+fn test_batch_get_invalid_table() {
+    let mut c = test_conn();
+    let err = commands::cmd_batch_get(&mut c, "bad", "some-id", "id")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Invalid table"));
+}
+
+#[test]
+fn test_batch_get_invalid_field() {
+    let mut c = test_conn();
+    let err = commands::cmd_batch_get(&mut c, "artist", "some-id", "id,password")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("Invalid field"));
+}
+
+#[test]
+fn test_batch_get_learning_records() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "S1", &aid);
+    let s2 = insert_song(&mut c, "S2", &aid);
+    let l1 = insert_learning(&mut c, &s1, 3, 0, 0);
+    let l2 = insert_learning(&mut c, &s2, 10, 0, 1);
+    let r = commands::cmd_batch_get(
+        &mut c,
+        "learning",
+        &format!("{l1},{l2}"),
+        "id,level,graduated",
+    )
+    .unwrap();
+    assert_eq!(r["count"], 2);
+    let results = r["results"].as_array().unwrap();
+    let levels: Vec<i64> = results
+        .iter()
+        .map(|r| r["level"].as_i64().unwrap())
+        .collect();
+    assert!(levels.contains(&3));
+    assert!(levels.contains(&10));
+}
+
 // === SEARCH ===
 
 #[test]

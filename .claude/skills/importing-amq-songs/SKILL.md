@@ -66,7 +66,14 @@ This script uses a two-phase approach:
 1. **Phase 1 (Resolution):** Resolves all entities (artist, show, song) from the database. Entries are separated into "complete" (all three found) and "missing" (any entity not in DB) groups.
 2. **Phase 2 (Processing):** For complete entries, automatically creates show-song links and play history records. Missing entries are skipped and reported.
 
-After the run, a **Missing Entities Report** is printed listing all unresolved artists, shows, and songs (deduplicated and grouped). Create the missing entities manually (or use Option B below), then re-run with `--missing-only` to process only the newly-resolved entries:
+After the run, a **Missing Entities Report** is printed listing all unresolved artists, shows, and songs (deduplicated), then grouped by missing pattern. Each group shows resolved IDs so follow-up procedures can reuse them without re-fetching:
+
+- **missing artist, show, song** — nothing resolved, create all three
+- **missing show, song (artist resolved)** — `artist_id` provided; create show and song, then link
+- **missing artist, song (show resolved)** — `show_id` provided; create artist and song, then link
+- **missing song (artist and show resolved)** — `artist_id` and `show_id` provided; just create the song and link
+
+Create the missing entities manually (or use Option B below), then re-run with `--missing-only` to process only the newly-resolved entries:
 
 ```bash
 python3 .claude/skills/importing-amq-songs/scripts/import_amq.py --missing-only <amq_export.json>
