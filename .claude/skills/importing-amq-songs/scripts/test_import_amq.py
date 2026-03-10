@@ -381,6 +381,42 @@ def main():
             "song: Hitohira" in stdout,
         )
 
+        # Verify grouped output with resolved IDs
+        check(
+            "Group: missing artist, show, song",
+            "missing artist, show, song" in stdout,
+        )
+        check(
+            "Group: missing show, song"
+            " (artist resolved)",
+            "missing show, song (artist resolved)"
+            in stdout,
+        )
+        check(
+            "Group: missing song"
+            " (artist and show resolved)",
+            "missing song (artist and show resolved)"
+            in stdout,
+        )
+        # eufonius entry has resolved artist_id
+        check(
+            "Resolved artist_id shown"
+            " for eufonius entry",
+            f"artist_id: {EUFONIUS_ID}" in stdout,
+        )
+        # Hitohira entry has resolved artist_id
+        # and show_id
+        check(
+            "Resolved artist_id shown"
+            " for Miyahara entry",
+            f"artist_id: {MIYAHARA_ID}" in stdout,
+        )
+        check(
+            "Resolved show_id shown"
+            " for Hitohira entry",
+            f"show_id: {FRAGRANT_SHOW_ID}" in stdout,
+        )
+
         # Verify DB state: 2 play_history records
         ph_count = count_table("play_history", db_path)
         check(

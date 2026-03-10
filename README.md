@@ -74,6 +74,9 @@ The CLI uses subcommands organized by functionality. All commands output JSON to
 # Get a song by ID
 jankenoboe get song 3b105bd4-c437-4720-a373-660bd5d68532 --fields id,name,artist_id
 
+# Get multiple artists by IDs
+jankenoboe batch-get artist --ids uuid-1,uuid-2,uuid-3 --fields id,name
+
 # Search artist by name (case-insensitive)
 jankenoboe search artist --fields id,name --term '{"name": {"value": "minami", "match": "exact-i"}}'
 
@@ -103,6 +106,9 @@ jankenoboe learning-batch --song-ids 3b105bd4-c437-4720-a373-660bd5d68532
 # Generate an HTML report of due songs (with show names, media URLs)
 jankenoboe learning-song-review
 jankenoboe learning-song-review --output ~/reports/review.html
+
+# Directly graduate specific learning records (set level to max and graduated)
+jankenoboe learning-song-graduate-ids --ids learning-uuid-1,learning-uuid-2
 
 # Level up specific learning records by ID (race-condition safe)
 jankenoboe learning-song-levelup-ids --ids learning-uuid-1,learning-uuid-2

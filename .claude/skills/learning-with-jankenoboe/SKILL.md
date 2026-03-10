@@ -129,6 +129,27 @@ jankenoboe update learning <learning_id> --data '{"graduated": 1}'
 
 ---
 
+## Directly Graduate by IDs
+
+Directly graduate specific learning records regardless of current level. Sets level to max (19) and graduated to true in a single operation.
+
+```bash
+jankenoboe learning-song-graduate-ids --ids learning-uuid-1,learning-uuid-2
+```
+
+**Output:**
+```json
+{
+  "graduated_count": 2
+}
+```
+
+- Sets `level = 19`, `graduated = 1`, updates timestamps
+- All updates in a single transaction
+- Rejects already-graduated records with an error
+
+---
+
 ## Get Learning Stats per Song
 
 Get the time spent learning each song. Groups all learning records by song and calculates the absolute gap in days between the earliest creation date and the most recent last_level_up_at.

@@ -22,6 +22,17 @@ enum Commands {
         #[arg(long)]
         fields: String,
     },
+    /// Get multiple records by IDs
+    BatchGet {
+        /// Table name
+        table: String,
+        /// Comma-separated record UUIDs
+        #[arg(long)]
+        ids: String,
+        /// Comma-separated list of field names to return
+        #[arg(long)]
+        fields: String,
+    },
     /// Search records with table-specific filters
     Search {
         /// Table name
@@ -102,6 +113,12 @@ enum Commands {
         #[arg(long)]
         ids: String,
     },
+    /// Directly graduate specific learning records (set level to max and graduated to true)
+    LearningSongGraduateIds {
+        /// Comma-separated learning UUIDs
+        #[arg(long)]
+        ids: String,
+    },
     /// Get learning records by song IDs
     LearningBySongIds {
         /// Comma-separated song UUIDs
@@ -153,6 +170,9 @@ fn main() {
 
     let result = match cli.command {
         Commands::Get { table, id, fields } => commands::cmd_get(&mut conn, &table, &id, &fields),
+        Commands::BatchGet { table, ids, fields } => {
+            commands::cmd_batch_get(&mut conn, &table, &ids, &fields)
+        }
         Commands::Search {
             table,
             term,
@@ -182,6 +202,9 @@ fn main() {
         } => commands::cmd_learning_song_review(&mut conn, &output, limit, offset),
         Commands::LearningSongLevelupIds { ids } => {
             commands::cmd_learning_song_levelup_ids(&mut conn, &ids)
+        }
+        Commands::LearningSongGraduateIds { ids } => {
+            commands::cmd_learning_song_graduate_ids(&mut conn, &ids)
         }
         Commands::LearningBySongIds { song_ids } => {
             commands::cmd_learning_by_song_ids(&mut conn, &song_ids)

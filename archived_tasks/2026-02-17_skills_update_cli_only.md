@@ -28,7 +28,7 @@ Update all Claude Agent Skills to use the `jankenoboe` CLI as the sole interface
 - **`docs/structure.md`** — replaced `_shared/` directory tree with flat skill listing
 
 ### Not Changed (by design)
-- `docs/archived_tasks/2026-02-16_agent_skills_and_agents_md.md` — historical reference, contains old HTTP/SQL mentions which are accurate for that point in time
+- `archived_tasks/2026-02-16_agent_skills_and_agents_md.md` — historical reference, contains old HTTP/SQL mentions which are accurate for that point in time
 - `skills/_shared/scripts/generate-review-html.py` — deleted (not updated to CLI); may be reimplemented later if needed
 - `README.md` — already clean, no stale references found
 

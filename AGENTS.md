@@ -42,8 +42,8 @@ src/
 ├── main.rs          # Entry point, CLI argument parsing, subcommand dispatch
 ├── commands/        # Subcommand implementations (split by category)
 │   ├── mod.rs             # Module root, re-exports all public command functions
-│   ├── querying.rs        # get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
-│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, levelup-ids, by-song-ids
+│   ├── querying.rs        # get, batch-get, search, duplicates, shows-by-artist-ids, songs-by-artist-ids
+│   ├── learning.rs        # learning-due, learning-batch, learning-song-review, graduate-ids, levelup-ids, by-song-ids, song-stats
 │   ├── data_management.rs # create, update, delete, bulk-reassign
 │   └── helpers.rs         # Shared utilities (e.g., json_value_to_sql)
 ├── db.rs            # Database connection management
@@ -61,8 +61,8 @@ src/
 |--------|---------|---------------|
 | `main.rs` | CLI entry point and argument parsing | `main()`, Clap configuration |
 | `commands/mod.rs` | Module root, re-exports all public command functions | Re-exports from submodules |
-| `commands/querying.rs` | Read-only query commands | `cmd_get`, `cmd_search`, `cmd_duplicates`, `cmd_shows_by_artist_ids`, `cmd_songs_by_artist_ids` |
-| `commands/learning.rs` | Spaced repetition commands | `cmd_learning_due`, `cmd_learning_batch`, `cmd_learning_song_review`, `cmd_learning_song_levelup_ids`, `cmd_learning_by_song_ids` |
+| `commands/querying.rs` | Read-only query commands | `cmd_get`, `cmd_batch_get`, `cmd_search`, `cmd_duplicates`, `cmd_shows_by_artist_ids`, `cmd_songs_by_artist_ids` |
+| `commands/learning.rs` | Spaced repetition commands | `cmd_learning_due`, `cmd_learning_batch`, `cmd_learning_song_review`, `cmd_learning_song_graduate_ids`, `cmd_learning_song_levelup_ids`, `cmd_learning_by_song_ids`, `cmd_learning_song_stats` |
 | `commands/data_management.rs` | CRUD and bulk operations | `cmd_create`, `cmd_update`, `cmd_delete`, `cmd_bulk_reassign` |
 | `commands/helpers.rs` | Shared utilities | `json_value_to_sql` |
 | `db.rs` | Database connection management | Connection setup, datasource.db initialization |
@@ -106,6 +106,7 @@ Commands are organized by category:
 | Command | Description |
 |---------|-------------|
 | `jankenoboe get <table> <id>` | Get record by ID |
+| `jankenoboe batch-get <table>` | Get multiple records by IDs |
 | `jankenoboe search <table>` | Search with table-specific filters |
 | `jankenoboe duplicates <table>` | Find duplicate records by name |
 | `jankenoboe shows-by-artist-ids` | Get all shows where given artists have song performances |
@@ -117,6 +118,7 @@ Commands are organized by category:
 | `jankenoboe learning-due` | Get songs due for review |
 | `jankenoboe learning-batch` | Add songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs |
+| `jankenoboe learning-song-graduate-ids` | Directly graduate specific learning records |
 | `jankenoboe learning-song-levelup-ids` | Level up specific learning records by ID |
 | `jankenoboe learning-by-song-ids` | Get learning records by song IDs |
 | `jankenoboe learning-song-stats` | Get learning stats per song (days spent learning) |

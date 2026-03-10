@@ -35,6 +35,7 @@ Each CLI doc page links to the relevant skill(s) for examples and workflows.
 | Command | Description |
 |---------|-------------|
 | `jankenoboe get <table> <id>` | Get record by ID |
+| `jankenoboe batch-get <table>` | Get multiple records by IDs |
 | `jankenoboe search <table>` | Search records with table-specific filters (exact or fuzzy match) |
 | `jankenoboe duplicates <table>` | Find duplicate records by name |
 | `jankenoboe shows-by-artist-ids` | Get all shows where given artists have song performances |
@@ -47,6 +48,7 @@ Each CLI doc page links to the relevant skill(s) for examples and workflows.
 | `jankenoboe learning-due` | Get songs due for review |
 | `jankenoboe learning-batch` | Add one or many songs to learning |
 | `jankenoboe learning-song-review` | Generate HTML report of due songs with enriched data |
+| `jankenoboe learning-song-graduate-ids` | Directly graduate specific learning records |
 | `jankenoboe learning-song-levelup-ids` | Level up specific learning records by their IDs |
 | `jankenoboe learning-by-song-ids` | Get learning records by song IDs |
 
@@ -87,6 +89,7 @@ This table shows how every required operation maps to the CLI commands.
 | Level up | `jankenoboe update learning <id> --data '{"level": N}'` |
 | Level down | `jankenoboe update learning <id> --data '{"level": N}'` |
 | Graduate | `jankenoboe update learning <id> --data '{"graduated": 1}'` |
+| Directly graduate by ID | `jankenoboe learning-song-graduate-ids --ids ...` |
 | Generate due songs HTML report | `jankenoboe learning-song-review` |
 | Level up specific songs by ID | `jankenoboe learning-song-levelup-ids --ids ...` |
 | Get learning records by song IDs | `jankenoboe learning-by-song-ids --song-ids ...` |

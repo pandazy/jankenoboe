@@ -54,6 +54,66 @@ pub fn cmd_get(
 }
 
 // ---------------------------------------------------------------------------
+// batch-get <table> --ids --fields
+// ---------------------------------------------------------------------------
+
+pub fn cmd_batch_get(
+    conn: &mut Connection,
+    table: &str,
+    ids_str: &str,
+    fields_str: &str,
+) -> Result<Value, AppError> {
+    models::validate_table(table, models::GET_TABLES)?;
+
+    let ids: Vec<&str> = ids_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if ids.is_empty() {
+        return Err(AppError::InvalidParameter("ids cannot be empty".into()));
+    }
+
+    let fields = models::parse_fields(fields_str);
+    if fields.is_empty() {
+        return Err(AppError::InvalidParameter("fields cannot be empty".into()));
+    }
+    let allowed = models::get_fields(table)?;
+    models::validate_fields(&fields, allowed)?;
+
+    let query_json = json!({
+        "batch_read_by_ids": {
+            "query": "SELECT ~[fields] FROM #[table] WHERE id IN :[ids]",
+            "returns": "~[fields]",
+            "args": {
+                "table": {"enum": table_config::build_table_enum(models::GET_TABLES)},
+                "fields": {
+                    "enumif": table_config::build_selectable_enumif(models::GET_TABLES)
+                },
+                "ids": {"itemtype": "string"}
+            }
+        }
+    });
+
+    let queries = QueryDefinitions::from_json(query_json)
+        .map_err(|e| AppError::Internal(format!("Query definition error: {e}")))?;
+
+    let ids_json: Vec<Value> = ids.iter().map(|s| json!(s)).collect();
+    let params = json!({
+        "table": table,
+        "fields": fields,
+        "ids": ids_json
+    });
+
+    let result = jankensqlhub::query_run_sqlite(conn, &queries, "batch_read_by_ids", &params)
+        .map_err(AppError::from)?;
+
+    let count = result.data.len();
+    Ok(json!({"count": count, "results": result.data}))
+}
+
+// ---------------------------------------------------------------------------
 // search <table> --term --fields
 // ---------------------------------------------------------------------------
 

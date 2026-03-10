@@ -184,6 +184,36 @@ Generate a self-contained HTML report of all songs currently due for review.
 
 ---
 
+## jankenoboe learning-song-graduate-ids
+
+Directly graduate specific learning records by their IDs. Sets the level to max (19) and `graduated = 1` in a single operation, regardless of current level.
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--ids` | Yes | Comma-separated learning record UUIDs |
+
+**Behavior:**
+- Sets `level = 19`, `graduated = 1`, updates `last_level_up_at` and `updated_at`
+- All updates in a single transaction
+- Does **not** check due status — graduates exactly the specified records
+
+**Error Cases:**
+| Condition | Exit Code | Output |
+|-----------|-----------|--------|
+| `--ids` is empty | 1 | `{"error": "ids cannot be empty"}` |
+| Any ID not found | 1 | `{"error": "learning record(s) not found: <ids>"}` |
+| Any ID already graduated | 1 | `{"error": "learning record already graduated: <id>"}` |
+
+**Output:**
+```json
+{
+  "graduated_count": 2
+}
+```
+
+---
+
 ## jankenoboe learning-song-levelup-ids
 
 Level up specific learning records by their IDs. Does **not** check due status — levels up exactly the specified records. Race-condition-safe.

@@ -831,6 +831,111 @@ fn test_learning_song_stats_with_play_history() {
     assert_eq!(r["results"][0]["play_count"], 3);
 }
 
+// === LEARNING-SONG-GRADUATE-IDS ===
+
+#[test]
+fn test_learning_song_graduate_ids_basic() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 5, now, now, now, 0);
+
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, &lid).unwrap();
+    assert_eq!(r["graduated_count"], 1);
+
+    // Verify level is set to max (19) and graduated is 1
+    let g =
+        commands::cmd_get(&mut c, "learning", &lid, "level,graduated,last_level_up_at").unwrap();
+    assert_eq!(g["results"][0]["level"], 19);
+    assert_eq!(g["results"][0]["graduated"], 1);
+    assert!(g["results"][0]["last_level_up_at"].as_i64().unwrap() > 0);
+}
+
+#[test]
+fn test_learning_song_graduate_ids_from_level_zero() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 0, now, now, 0, 0);
+
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, &lid).unwrap();
+    assert_eq!(r["graduated_count"], 1);
+
+    let g = commands::cmd_get(&mut c, "learning", &lid, "level,graduated").unwrap();
+    assert_eq!(g["results"][0]["level"], 19);
+    assert_eq!(g["results"][0]["graduated"], 1);
+}
+
+#[test]
+fn test_learning_song_graduate_ids_from_max_level() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 19, now, now, now, 0);
+
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, &lid).unwrap();
+    assert_eq!(r["graduated_count"], 1);
+
+    let g = commands::cmd_get(&mut c, "learning", &lid, "level,graduated").unwrap();
+    assert_eq!(g["results"][0]["level"], 19);
+    assert_eq!(g["results"][0]["graduated"], 1);
+}
+
+#[test]
+fn test_learning_song_graduate_ids_multiple() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let s1 = insert_song(&mut c, "S1", &aid);
+    let s2 = insert_song(&mut c, "S2", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid1 = insert_learning_raw(&mut c, &s1, 3, now, now, now, 0);
+    let lid2 = insert_learning_raw(&mut c, &s2, 15, now, now, now, 0);
+
+    let ids = format!("{lid1},{lid2}");
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, &ids).unwrap();
+    assert_eq!(r["graduated_count"], 2);
+
+    let g1 = commands::cmd_get(&mut c, "learning", &lid1, "level,graduated").unwrap();
+    assert_eq!(g1["results"][0]["level"], 19);
+    assert_eq!(g1["results"][0]["graduated"], 1);
+
+    let g2 = commands::cmd_get(&mut c, "learning", &lid2, "level,graduated").unwrap();
+    assert_eq!(g2["results"][0]["level"], 19);
+    assert_eq!(g2["results"][0]["graduated"], 1);
+}
+
+#[test]
+fn test_learning_song_graduate_ids_already_graduated() {
+    let mut c = test_conn();
+    let aid = insert_artist(&mut c, "A");
+    let sid = insert_song(&mut c, "S", &aid);
+    let now = jankenoboe::models::now_unix();
+    let lid = insert_learning_raw(&mut c, &sid, 19, now, now, now, 1);
+
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, &lid);
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("already graduated"));
+}
+
+#[test]
+fn test_learning_song_graduate_ids_not_found() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, "nonexistent-id");
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("not found"));
+}
+
+#[test]
+fn test_learning_song_graduate_ids_empty() {
+    let mut c = test_conn();
+    let r = commands::cmd_learning_song_graduate_ids(&mut c, "");
+    assert!(r.is_err());
+    assert!(r.unwrap_err().to_string().contains("ids cannot be empty"));
+}
+
 // === SQL INJECTION PREVENTION ===
 
 #[test]
