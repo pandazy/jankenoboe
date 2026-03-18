@@ -125,11 +125,11 @@ jankenoboe update learning bb9d3b38-9c28-4d11-aecd-6d2650724b98 --data '{"level"
 
 ### URL Percent-Encoding
 
-String values in `--term` and `--data` are automatically URL percent-decoded. This avoids shell quoting issues with special characters like `'`, `"`, `(`, `)`, `&`, `!`, and spaces. Use the included Python helper to encode values:
+String values in `--term` and `--data` are automatically URL percent-decoded. This avoids shell quoting issues with special characters like `'`, `"`, `(`, `)`, `&`, `!`, and spaces. Encode values using inline Python:
 
 ```bash
 # Encode a value
-python3 tools/url_encode.py "it's a test"
+python3 -c "from urllib.parse import quote; print(quote(\"it's a test\", safe=''))"
 # Output: it%27s%20a%20test
 
 # Use in search

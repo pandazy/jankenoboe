@@ -40,17 +40,14 @@ archived_tasks/          # Completed task documentation
 └── importing-amq-songs/
     ├── SKILL.md                       # AMQ song import workflow
     └── scripts/                       # Import helper scripts
-        ├── parse_amq_import.py
         ├── import_amq.py
-        ├── test_import_amq.py
-        ├── check_artists.sh
-        └── check_shows.sh
+        └── test_import_amq.py
 
 templates/
 └── learning-song-review.html  # HTML template for due song review report
 
 tools/
-└── url_encode.py        # Python helper to URL percent-encode values for CLI args
+└── (reserved for future utilities)
 
 e2e/
 ├── Dockerfile           # Multi-stage Docker build for e2e testing

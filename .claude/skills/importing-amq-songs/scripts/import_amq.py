@@ -6,8 +6,10 @@ Two-phase approach:
   Phase 1: Resolve all entities (artist, show, song) from the database.
            Separate into "complete" (all found) vs "missing" groups.
   Phase 2: For complete groups, link show-song and create play_history.
-           For missing groups, output a report for manual handling.
+           For missing groups, output a report with actionable CLI
+           commands for manual handling.
 """
+
 import json
 import subprocess
 import sys
@@ -31,10 +33,10 @@ def run_jankenoboe(args):
         return None
 
 
-def get_artist_id(artist_name):
-    """Get artist ID by exact name match."""
+def search_artists_by_name(artist_name):
+    """Search artists by exact name match. Returns all matches."""
     encoded = url_encode(artist_name)
-    term = f'{{"name": {{"value": "{encoded}",' f' "match": "exact"}}}}'
+    term = f'{{"name": {{"value": "{encoded}", "match": "exact"}}}}'
     result = run_jankenoboe(
         [
             "search",
@@ -46,8 +48,112 @@ def get_artist_id(artist_name):
         ]
     )
     if result and result.get("results"):
-        return result["results"][0]["id"]
+        return result["results"]
+    return []
+
+
+def get_songs_for_artist(artist_id):
+    """Get all songs for an artist by ID."""
+    term = f'{{"artist_id": {{"value": "{artist_id}"}}}}'
+    result = run_jankenoboe(
+        [
+            "search",
+            "song",
+            "--fields",
+            "id,name",
+            "--term",
+            term,
+        ]
+    )
+    if result and result.get("results"):
+        return result["results"]
+    return []
+
+
+def create_artist(artist_name):
+    """Create a new artist and return its ID."""
+    encoded = url_encode(artist_name)
+    data = f'{{"name": "{encoded}"}}'
+    result = run_jankenoboe(
+        [
+            "create",
+            "artist",
+            "--data",
+            data,
+        ]
+    )
+    if result and result.get("id"):
+        return result["id"]
     return None
+
+
+def prompt_artist_disambiguation(artist_name, artists, song_name, show_name):
+    """Prompt user to select from multiple artists with the same name.
+
+    Displays each artist's existing songs and lets the user choose
+    the correct one, or create a new artist.
+
+    Returns the selected artist ID, or None if user chooses to skip.
+    """
+    print(f'\n  ⚠ Multiple artists named "{artist_name}" found!')
+    print(f'    (resolving: "{song_name}" from "{show_name}")')
+
+    for idx, artist in enumerate(artists, 1):
+        aid = artist["id"]
+        songs = get_songs_for_artist(aid)
+        song_names = [s["name"] for s in songs]
+        print(f"\n    [{idx}] Artist ID: {aid}")
+        if song_names:
+            print("        Songs: " + ", ".join(song_names))
+        else:
+            print("        Songs: (none)")
+
+    new_idx = len(artists) + 1
+    skip_idx = new_idx + 1
+    print(f'\n    [{new_idx}] Create a NEW artist named "{artist_name}"')
+    print(f"    [{skip_idx}] Skip this entry")
+
+    while True:
+        try:
+            choice = input(f"\n    Select [1-{skip_idx}]: ").strip()
+            choice_num = int(choice)
+        except (ValueError, EOFError):
+            print("    Invalid input. Try again.")
+            continue
+
+        if 1 <= choice_num <= len(artists):
+            selected = artists[choice_num - 1]
+            print(f"    → Selected artist: {selected['id']}")
+            return selected["id"]
+        elif choice_num == new_idx:
+            new_id = create_artist(artist_name)
+            if new_id:
+                print(f"    → Created new artist: {new_id}")
+                return new_id
+            else:
+                print("    ✗ Failed to create artist. Try again.")
+                continue
+        elif choice_num == skip_idx:
+            print("    → Skipping this entry.")
+            return None
+        else:
+            print("    Invalid choice. Try again.")
+
+
+def get_artist_id(artist_name, song_name="", show_name=""):
+    """Get artist ID by exact name match.
+
+    When multiple artists share the same name, prompts the
+    user to disambiguate by showing each artist's song list.
+    """
+    artists = search_artists_by_name(artist_name)
+    if not artists:
+        return None
+    if len(artists) == 1:
+        return artists[0]["id"]
+
+    # Multiple matches — prompt user to disambiguate
+    return prompt_artist_disambiguation(artist_name, artists, song_name, show_name)
 
 
 def get_show(show_name, vintage):
@@ -119,8 +225,7 @@ def get_song_id(song_name, artist_id):
 def check_rel_show_song(show_id, song_id):
     """Check if show-song link exists."""
     term = (
-        f'{{"show_id": {{"value": "{show_id}"}},'
-        f' "song_id": {{"value": "{song_id}"}}}}'
+        f'{{"show_id": {{"value": "{show_id}"}}, "song_id": {{"value": "{song_id}"}}}}'
     )
     result = run_jankenoboe(
         [
@@ -139,7 +244,7 @@ def check_rel_show_song(show_id, song_id):
 
 def create_rel_show_song(show_id, song_id):
     """Create show-song link."""
-    data = f'{{"show_id": "{show_id}",' f' "song_id": "{song_id}"}}'
+    data = f'{{"show_id": "{show_id}", "song_id": "{song_id}"}}'
     result = run_jankenoboe(
         [
             "create",
@@ -174,7 +279,7 @@ def resolve_entry(song_entry):
     """Resolve artist, show, and song IDs for an AMQ export entry.
 
     Returns a dict with:
-      - entry info (names, vintage, url)
+      - entry info (names, vintage, url, romaji, s_type)
       - resolved IDs (or None for missing)
       - missing: list of what's missing (empty if complete)
     """
@@ -183,14 +288,18 @@ def resolve_entry(song_entry):
     song_name = info.get("songName", "")
     anime_names = info.get("animeNames", {})
     show_name = anime_names.get("english", "")
+    romaji_name = anime_names.get("romaji", "")
     vintage = info.get("vintage", "")
+    s_type = info.get("animeType", "")
     video_url = song_entry.get("videoUrl", "")
 
     resolved = {
         "artist_name": artist_name,
         "song_name": song_name,
         "show_name": show_name,
+        "romaji_name": romaji_name,
         "vintage": vintage,
+        "s_type": s_type,
         "video_url": video_url,
         "artist_id": None,
         "show_id": None,
@@ -199,14 +308,13 @@ def resolve_entry(song_entry):
     }
 
     # Resolve artist
-    artist_id = get_artist_id(artist_name)
+    artist_id = get_artist_id(artist_name, song_name, show_name)
     if artist_id:
         resolved["artist_id"] = artist_id
     else:
         resolved["missing"].append(f"artist: {artist_name}")
 
     # Resolve show
-    romaji_name = anime_names.get("romaji", "")
     show_record = get_show(show_name, vintage)
     if show_record:
         resolved["show_id"] = show_record["id"]
@@ -252,48 +360,92 @@ def _resolved_label(pattern):
     return " (" + " and ".join(resolved) + " resolved)"
 
 
+def _build_create_cmd(table, data_dict):
+    """Build a jankenoboe create command string."""
+    encoded_parts = []
+    for key, val in data_dict.items():
+        if val:
+            encoded_val = url_encode(val)
+            encoded_parts.append(f'"{key}": "{encoded_val}"')
+    data_json = "{" + ", ".join(encoded_parts) + "}"
+    return f"jankenoboe create {table} --data '{data_json}'"
+
+
 def print_missing_report(missing_entries):
     """Print a grouped report of entries with missing entities.
 
     Groups entries by their missing pattern (which combination of
-    artist/show/song is missing). Each entry shows resolved IDs so
-    follow-up procedures can reuse them without re-fetching.
+    artist/show/song is missing). Each group shows resolved IDs and
+    actionable CLI commands for creating missing entities.
     """
     print("\n=== Missing Entities Report ===")
-    print(f"Total entries with missing data:" f" {len(missing_entries)}\n")
+    print(f"Total entries with missing data: {len(missing_entries)}\n")
 
     # Collect unique missing entities (deduplicated)
-    missing_artists = set()
-    missing_shows = set()
-    missing_songs = set()
+    missing_artists = {}
+    missing_shows = {}
+    missing_songs = {}
 
     for entry in missing_entries:
-        for item in entry["missing"]:
-            if item.startswith("artist:"):
-                missing_artists.add(item)
-            elif item.startswith("show:"):
-                missing_shows.add(item)
-            elif item.startswith("song:"):
-                missing_songs.add(item)
+        if entry["artist_id"] is None:
+            name = entry["artist_name"]
+            if name not in missing_artists:
+                missing_artists[name] = entry
+        if entry["show_id"] is None:
+            key = f"{entry['show_name']}|||{entry['vintage']}"
+            if key not in missing_shows:
+                missing_shows[key] = entry
+        if entry["song_id"] is None:
+            key = f"{entry['song_name']}|||{entry['artist_name']}"
+            if key not in missing_songs:
+                missing_songs[key] = entry
 
     if missing_artists:
-        print(
-            f"Missing artists ({len(missing_artists)}):"
-        )
-        for a in sorted(missing_artists):
-            print(f"  - {a}")
+        print(f"Missing artists ({len(missing_artists)}):")
+        for name, entry in sorted(missing_artists.items()):
+            print(f"  - artist: {name}")
+            cmd = _build_create_cmd("artist", {"name": name})
+            print(f"    → {cmd}")
         print()
 
     if missing_shows:
         print(f"Missing shows ({len(missing_shows)}):")
-        for s in sorted(missing_shows):
-            print(f"  - {s}")
+        for key, entry in sorted(missing_shows.items()):
+            show_name = entry["show_name"]
+            vintage = entry["vintage"]
+            romaji = entry["romaji_name"]
+            s_type = entry["s_type"]
+            print(f"  - show: {show_name} ({vintage})")
+            if romaji:
+                print(f"    romaji: {romaji}")
+            show_data = {
+                "name": show_name,
+                "name_romaji": romaji,
+                "vintage": vintage,
+                "s_type": s_type,
+            }
+            cmd = _build_create_cmd("show", show_data)
+            print(f"    → {cmd}")
         print()
 
     if missing_songs:
         print(f"Missing songs ({len(missing_songs)}):")
-        for s in sorted(missing_songs):
-            print(f"  - {s}")
+        for key, entry in sorted(missing_songs.items()):
+            song_name = entry["song_name"]
+            artist_name = entry["artist_name"]
+            artist_id = entry["artist_id"]
+            if artist_id:
+                print(f"  - song: {song_name} by {artist_name}")
+                cmd = _build_create_cmd(
+                    "song",
+                    {
+                        "name": song_name,
+                        "artist_id": artist_id,
+                    },
+                )
+                print(f"    → {cmd}")
+            else:
+                print(f"  - song: {song_name} by {artist_name} (create artist first)")
         print()
 
     # Group entries by missing pattern
@@ -311,7 +463,7 @@ def print_missing_report(missing_entries):
         print(f"--- {label} ---")
         for entry in entries:
             desc = (
-                f"\"{entry['song_name']}\""
+                f'"{entry["song_name"]}"'
                 f" by {entry['artist_name']}"
                 f" from {entry['show_name']}"
                 f" ({entry['vintage']})"
@@ -320,20 +472,11 @@ def print_missing_report(missing_entries):
 
             # Print resolved IDs
             if entry["artist_id"]:
-                print(
-                    f"    \u2713 artist_id:"
-                    f" {entry['artist_id']}"
-                )
+                print(f"    \u2713 artist_id: {entry['artist_id']}")
             if entry["show_id"]:
-                print(
-                    f"    \u2713 show_id:"
-                    f" {entry['show_id']}"
-                )
+                print(f"    \u2713 show_id: {entry['show_id']}")
             if entry["song_id"]:
-                print(
-                    f"    \u2713 song_id:"
-                    f" {entry['song_id']}"
-                )
+                print(f"    \u2713 song_id: {entry['song_id']}")
 
             # Print what's missing
             for m in entry["missing"]:
@@ -358,7 +501,7 @@ def process_complete_entries(complete_entries, missing_only):
         song_id = entry["song_id"]
         video_url = entry["video_url"]
         label = (
-            f"\"{entry['song_name']}\""
+            f'"{entry["song_name"]}"'
             f" by {entry['artist_name']}"
             f" from {entry['show_name']}"
         )
@@ -368,7 +511,7 @@ def process_complete_entries(complete_entries, missing_only):
         # In missing-only mode, skip already-processed entries
         if missing_only and already_linked:
             skipped += 1
-            print(f"  \u2013 Skipped (already linked):" f" {label}")
+            print(f"  \u2013 Skipped (already linked): {label}")
             continue
 
         # Link show to song
@@ -414,7 +557,7 @@ def import_amq_file(filepath, missing_only=False):
     total = len(songs)
 
     if missing_only:
-        print("\n[--missing-only] Will skip" " already-linked entries.\n")
+        print("\n[--missing-only] Will skip already-linked entries.\n")
 
     print(f"=== Phase 1: Resolving {total} songs ===\n")
 
@@ -426,13 +569,13 @@ def import_amq_file(filepath, missing_only=False):
         artist_name = info.get("artist", "")
         song_name = info.get("songName", "")
 
-        print(f"[{idx}/{total}] Resolving:" f' "{song_name}" by {artist_name}')
+        print(f'[{idx}/{total}] Resolving: "{song_name}" by {artist_name}')
 
         resolved = resolve_entry(song_entry)
 
         if resolved["missing"]:
             missing.append(resolved)
-            print(f"  \u2717 Missing: " + ", ".join(resolved["missing"]))
+            print("  \u2717 Missing: " + ", ".join(resolved["missing"]))
         else:
             complete.append(resolved)
             romaji_note = ""
@@ -440,16 +583,16 @@ def import_amq_file(filepath, missing_only=False):
                 romaji_note = " (filled romaji name)"
             print(f"  \u2713 All entities found{romaji_note}")
 
-    print(f"\n--- Resolution Summary ---")
+    print("\n--- Resolution Summary ---")
     print(f"Complete: {len(complete)}")
     print(f"Missing:  {len(missing)}")
 
     # Phase 2: Process complete entries
     if complete:
-        print(f"\n=== Phase 2: Processing" f" {len(complete)} complete entries ===\n")
+        print(f"\n=== Phase 2: Processing {len(complete)} complete entries ===\n")
         links, plays, skipped, errors = process_complete_entries(complete, missing_only)
 
-        print(f"\n--- Processing Summary ---")
+        print("\n--- Processing Summary ---")
         print(f"New show-song links: {len(links)}")
         print(f"Play histories created: {plays}")
         if missing_only:

@@ -572,14 +572,14 @@ ec=$?
 assert_exit_code "learning-song-review empty exits 0" 0 "$ec"
 assert_json_field "learning-song-review empty count" "$out" '.count' "0"
 
-# Create data: artist -> song -> show -> rel_show_song -> learning
+# Create data: artist -> song -> show -> play_history -> learning
 a_out=$(jankenoboe create artist --data '{"name":"ReviewArtist"}')
 A_ID=$(echo "$a_out" | jq -r '.id')
 s_out=$(jankenoboe create song --data "{\"name\":\"ReviewSong\",\"artist_id\":\"$A_ID\"}")
 S_ID=$(echo "$s_out" | jq -r '.id')
 sh_out=$(jankenoboe create show --data '{"name":"ReviewShow","vintage":"Winter 2024","s_type":"TV"}')
 SH_ID=$(echo "$sh_out" | jq -r '.id')
-jankenoboe create rel_show_song --data "{\"show_id\":\"$SH_ID\",\"song_id\":\"$S_ID\",\"media_url\":\"https://example.com/review.mp4\"}" > /dev/null
+jankenoboe create play_history --data "{\"show_id\":\"$SH_ID\",\"song_id\":\"$S_ID\",\"media_url\":\"https://example.com/review.mp4\"}" > /dev/null
 
 # Add to learning (level 0 is immediately due with 5-min warm-up after creation)
 jankenoboe learning-batch --song-ids "$S_ID" > /dev/null
@@ -800,8 +800,10 @@ assert_exit_code "learning-by-song-ids exits 0" 0 "$ec"
 assert_json_field "learning-by-song-ids count" "$out" '.count' "2"
 # Ordered by level DESC: song1 (level 3) first, song2 (level 0) second
 assert_json_field "learning-by-song-ids first level" "$out" '.results[0].level' "3"
+assert_json_field "learning-by-song-ids first display_level" "$out" '.results[0].display_level' "4"
 assert_json_field "learning-by-song-ids first song_name" "$out" '.results[0].song_name' "BySongSong1"
 assert_json_field "learning-by-song-ids second level" "$out" '.results[1].level' "0"
+assert_json_field "learning-by-song-ids second display_level" "$out" '.results[1].display_level' "1"
 assert_json_field "learning-by-song-ids second song_name" "$out" '.results[1].song_name' "BySongSong2"
 
 # Empty song-ids should fail

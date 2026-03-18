@@ -74,7 +74,7 @@ src/
 
 ```
 tools/
-└── url_encode.py # Python helper to URL percent-encode values for CLI args
+└── (reserved for future utilities)
 
 e2e/
 ├── Dockerfile    # Multi-stage Docker build for e2e testing

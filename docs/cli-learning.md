@@ -33,9 +33,21 @@ graduated = 0 AND (
 )
 ```
 
+**Output fields:**
+| Field | Description |
+|-------|-------------|
+| `id` | Learning record UUID |
+| `song_id` | Song UUID |
+| `song_name` | Song name |
+| `level` | Stored level (0-indexed, used in database/CLI) |
+| `display_level` | Display level (1-indexed, `level + 1`, for user-facing output) |
+| `wait_days` | Days to wait at current level before next review |
+
 **Full SQL (with offset):**
 ```sql
-SELECT l.*, s.name as song_name
+SELECT l.id, l.song_id, s.name as song_name, l.level,
+       (l.level + 1) as display_level,
+       COALESCE(json_extract(l.level_up_path, '$[' || l.level || ']'), 0) as wait_days
 FROM learning l
 JOIN song s ON l.song_id = s.id
 WHERE l.graduated = 0
@@ -123,6 +135,18 @@ Get learning records for specific songs. Returns all records (active and graduat
 |--------|----------|-------------|
 | `--song-ids` | Yes | Comma-separated song UUIDs |
 
+**Output fields:**
+| Field | Description |
+|-------|-------------|
+| `id` | Learning record UUID |
+| `song_id` | Song UUID |
+| `song_name` | Song name |
+| `level` | Stored level (0-indexed, used in database/CLI) |
+| `display_level` | Display level (1-indexed, `level + 1`, for user-facing output) |
+| `graduated` | `0` = active, `1` = graduated |
+| `last_level_up_at` | Unix timestamp of last level-up |
+| `wait_days` | Days to wait at current level |
+
 **Behavior:**
 - Includes both active and graduated records
 - A single song may have multiple records (graduated + active re-learn)
@@ -177,7 +201,7 @@ Generate a self-contained HTML report of all songs currently due for review.
 
 **HTML Report Features:**
 - Summary statistics: total due songs, level distribution
-- Each song: name, artist, level (display = stored + 1), wait days, show names, clickable media URLs
+- Each song: name, artist, level (display = stored + 1), wait days, shows (from play_history) with grouped clickable media URLs per show
 - Copyable IDs per song: learning ID, song ID, show ID(s) with one-click copy
 - Client-side pagination (20 per page), sorted by level descending
 - Self-contained, works offline

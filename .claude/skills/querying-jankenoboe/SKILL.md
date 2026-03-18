@@ -96,7 +96,7 @@ All searches use the `--term` JSON parameter. Each key is a column name with `{v
 
 **Match modes:** `exact` (default, case-sensitive), `exact-i` (case-insensitive), `starts-with`, `ends-with`, `contains`
 
-**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing quotes, spaces, or other shell-problematic characters (e.g., `it%27s` → `it's`, `%20` → space). Plain text without `%` works unchanged.
+**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. To encode values containing quotes, spaces, or shell-problematic characters, use inline Python: `python3 -c "from urllib.parse import quote; print(quote('<text>', safe=''))"` (e.g., `it's` → `it%27s`, spaces → `%20`). Plain text without `%` works unchanged.
 
 ### Exact searches
 

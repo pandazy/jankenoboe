@@ -20,7 +20,7 @@ Create a new record in the specified table. The CLI generates the `id` (UUID) an
 |--------|----------|-------------|
 | `--data` | Yes | JSON object with field values. String values are URL percent-decoded. |
 
-**URL Percent-Encoding:** All string values in `--data` are automatically URL percent-decoded before use. Use `python3 tools/url_encode.py "<text>"` to encode values containing shell-problematic characters. Keys and non-string values (numbers, booleans) are not decoded.
+**URL Percent-Encoding:** All string values in `--data` are automatically URL percent-decoded before use. To encode values containing shell-problematic characters, use inline Python: `python3 -c "from urllib.parse import quote; print(quote('<text>', safe=''))"`. Keys and non-string values (numbers, booleans) are not decoded.
 
 **Creatable fields per table:**
 | Table | Fields |
