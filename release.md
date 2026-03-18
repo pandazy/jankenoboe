@@ -1,24 +1,26 @@
-## v2.6.0
+## v2.7.0
 
-### New: `batch-get` command
+### Improved: Interactive namesake artist disambiguation during import
 
-Batch version of `get` — retrieve multiple records by IDs in a single call. Accepts `--ids` (comma-separated UUIDs) and `--fields`, returns `{"count": N, "results": [...]}`. Nonexistent IDs are silently ignored.
+The AMQ import script now interactively prompts when multiple artists share the same name. Instead of silently picking the first match, the script pauses and displays each artist's existing songs, letting the user select the correct one, create a new namesake artist, or skip the entry. This prevents misattributed songs during import.
 
-```bash
-jankenoboe batch-get artist --ids uuid-1,uuid-2 --fields id,name
-```
+### New: `display_level` field in learning responses
 
-### New: `learning-song-graduate-ids` command
+`learning-due` and `learning-by-song-ids` now return a `display_level` field (`level + 1`, 1-indexed) alongside the stored `level` (0-indexed). This makes the stored vs. displayed level convention explicit — no more manual `+1` arithmetic in agents or scripts.
 
-Directly graduate specific learning records by their IDs. Sets level to max (19) and `graduated = 1` in a single atomic transaction, regardless of current level. Validates that records exist and aren't already graduated.
+### Improved: Due song review report
 
-```bash
-jankenoboe learning-song-graduate-ids --ids learning-uuid-1,learning-uuid-2
-```
+The HTML review report (`learning-song-review`) has been redesigned:
 
-### Improved: Import missing report with resolved IDs
+- **Shows sourced from play_history** — show data and media URLs now come directly from `play_history` instead of `rel_show_song`, so the report reflects actual quiz encounters
+- **Grouped media URLs per show** — each show is displayed as a distinct group with its own media links, making it easy to identify which URLs belong to which show
+- **Vintage display** — each show now displays its vintage (e.g., "Winter 2024") next to the name
 
-The AMQ import script's Missing Entities Report now groups entries by their missing pattern and includes already-resolved IDs. For example, if only the song is missing, the report shows the resolved `artist_id` and `show_id` — follow-up procedures can directly create the song and link it without re-fetching.
+### Improved: Import skill simplified
+
+- Streamlined AMQ import workflow to a single script (`import_amq.py`) — removed the separate analyze/verify step and unused helper scripts
+- Missing entities report now generates ready-to-run `jankenoboe create` CLI commands with all available fields (`name_romaji`, `vintage`, `s_type`)
+- Replaced `tools/url_encode.py` with inline Python one-liners across all docs and skills to avoid REPL-mode hangs
 
 ## Installation
 

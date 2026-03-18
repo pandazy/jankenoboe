@@ -56,7 +56,7 @@ level_up_path: [1,1,1,1,1,1,1,2,3,5,7,13,19,32,52,84,135,220,355,574]
 | 7 | 8 | Default re-learn start |
 | 19 | 20 | Final level before graduation |
 
-This convention keeps the database representation aligned with array indexing (`level_up_path[level]` works directly), while the user-facing display is more intuitive ("Level 1" instead of "Level 0"). All API inputs and outputs use the **stored (0-indexed)** value — the +1 transformation is a **display-only** concern handled by the client/UI.
+This convention keeps the database representation aligned with array indexing (`level_up_path[level]` works directly), while the user-facing display is more intuitive ("Level 1" instead of "Level 0"). API inputs (e.g., `update learning --data '{"level": 8}'`) use the **stored (0-indexed)** value. API outputs from `learning-due` and `learning-by-song-ids` include both `level` (stored, 0-indexed) and `display_level` (1-indexed, `level + 1`) to make the convention explicit. The HTML report also uses the display level.
 
 **Level changes:**
 - **Level up**: After correctly reviewing a song, increment its level. The `last_level_up_at` is updated to the current timestamp.

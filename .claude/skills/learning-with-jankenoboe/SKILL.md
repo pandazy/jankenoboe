@@ -42,11 +42,14 @@ jankenoboe learning-due --offset 120 --limit 50 # due within the next 2 minutes
       "song_id": "...",
       "song_name": "1-nichi wa 25-jikan.",
       "level": 16,
+      "display_level": 17,
       "wait_days": 135
     }
   ]
 }
 ```
+
+> **Level fields:** `level` is the stored 0-indexed value (database/CLI). `display_level` is `level + 1` (1-indexed, user-facing).
 
 ---
 
@@ -198,6 +201,7 @@ jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
       "song_id": "song-uuid-1",
       "song_name": "Crossing Field",
       "level": 10,
+      "display_level": 11,
       "graduated": 0,
       "last_level_up_at": 1708900000,
       "wait_days": 7
@@ -205,6 +209,8 @@ jankenoboe learning-by-song-ids --song-ids song-uuid-1,song-uuid-2
   ]
 }
 ```
+
+> **Level fields:** `level` is the stored 0-indexed value (database/CLI). `display_level` is `level + 1` (1-indexed, user-facing).
 
 - A single song may have multiple records (e.g., graduated + active re-learn)
 - Songs with no learning records are simply absent from results (no error)

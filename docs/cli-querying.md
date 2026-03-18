@@ -147,7 +147,7 @@ Search records using a structured `--term` JSON parameter. Each key in the term 
 
 The `match` field is optional and defaults to `exact` (case-sensitive).
 
-**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing shell-problematic characters.
+**URL Percent-Encoding:** The `value` field is automatically URL percent-decoded. To encode values containing shell-problematic characters, use inline Python: `python3 -c "from urllib.parse import quote; print(quote('<text>', safe=''))"`.
 
 **Match modes:**
 | Mode | Default | SQL Pattern | Description |

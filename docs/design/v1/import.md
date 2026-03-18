@@ -76,7 +76,7 @@ AMQ exports JSON files with guessed song records. See `docs/design/v1/amq_song_e
 
 For each song in the export, process sequentially through these steps. Earlier songs may create entities reused by later songs.
 
-1. **Resolve Artist** — Search by name. Handle not-found, single match, or namesake conflicts.
+1. **Resolve Artist** — Search by name. Handle not-found, single match, or namesake conflicts (interactive prompt).
 2. **Resolve Show** — Search by English name (case-insensitive) + vintage. Create if missing; update casing if it differs.
 3. **Resolve Song** — Search by name + resolved artist ID. Create if missing.
 4. **Link Show to Song** — Check if the show–song relationship exists. Create if missing.

@@ -63,6 +63,7 @@ fn test_learning_due_level0_newly_created() {
     assert_eq!(r["results"][0]["id"], lid);
     assert_eq!(r["results"][0]["song_name"], "S");
     assert_eq!(r["results"][0]["level"], 0);
+    assert_eq!(r["results"][0]["display_level"], 1);
 }
 
 #[test]
@@ -139,7 +140,9 @@ fn test_learning_due_ordered_by_level_desc() {
     assert_eq!(r["count"], 2);
     // Higher level first
     assert_eq!(r["results"][0]["level"], 10);
+    assert_eq!(r["results"][0]["display_level"], 11);
     assert_eq!(r["results"][1]["level"], 3);
+    assert_eq!(r["results"][1]["display_level"], 4);
 }
 
 #[test]
@@ -338,7 +341,7 @@ fn test_learning_song_review_generates_html() {
     let past = jankenoboe::models::now_unix() - 400;
     insert_learning_raw(&mut c, &sid, 0, past, past, 0, 0);
 
-    // Add a show and link it
+    // Add a show and play_history linking song to show
     let show_id = uuid::Uuid::new_v4().to_string();
     let now = jankenoboe::models::now_unix();
     c.execute(
@@ -346,9 +349,10 @@ fn test_learning_song_review_generates_html() {
         rusqlite::params![show_id, "TestShow", now, now],
     )
     .unwrap();
+    let ph_id = uuid::Uuid::new_v4().to_string();
     c.execute(
-        "INSERT INTO rel_show_song (show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![show_id, sid, "https://example.com/media1", now],
+        "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![ph_id, show_id, sid, "https://example.com/media1", now],
     )
     .unwrap();
 
@@ -399,16 +403,17 @@ fn test_learning_song_review_deduplicates_media_urls() {
         rusqlite::params![show_id, "Show1", now, now],
     )
     .unwrap();
-    // Same URL in rel_show_song and play_history
-    c.execute(
-        "INSERT INTO rel_show_song (show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![show_id, sid, "https://example.com/same", now],
-    )
-    .unwrap();
-    let ph_id = uuid::Uuid::new_v4().to_string();
+    // Two play_history records with the same URL for the same show
+    let ph_id1 = uuid::Uuid::new_v4().to_string();
     c.execute(
         "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![ph_id, show_id, sid, "https://example.com/same", now],
+        rusqlite::params![ph_id1, show_id, sid, "https://example.com/same", now],
+    )
+    .unwrap();
+    let ph_id2 = uuid::Uuid::new_v4().to_string();
+    c.execute(
+        "INSERT INTO play_history (id, show_id, song_id, media_url, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![ph_id2, show_id, sid, "https://example.com/same", now],
     )
     .unwrap();
 
@@ -418,8 +423,7 @@ fn test_learning_song_review_deduplicates_media_urls() {
     assert_eq!(r["count"], 1);
 
     let html = std::fs::read_to_string(&output_path).unwrap();
-    // The URL should appear only once in the mediaUrls JSON array, not twice
-    // Media rendering is now done client-side, so we check the JSON data
+    // The URL should appear only once per show, deduplicated
     let url_count = html.matches("https://example.com/same").count();
     assert_eq!(url_count, 1);
 
@@ -609,6 +613,7 @@ fn test_learning_by_song_ids_single() {
     assert_eq!(r["results"][0]["song_id"], sid);
     assert_eq!(r["results"][0]["song_name"], "S");
     assert_eq!(r["results"][0]["level"], 5);
+    assert_eq!(r["results"][0]["display_level"], 6);
     assert_eq!(r["results"][0]["graduated"], 0);
     assert_eq!(r["results"][0]["wait_days"], 1);
 }
@@ -627,7 +632,9 @@ fn test_learning_by_song_ids_multiple_songs() {
     assert_eq!(r["count"], 2);
     // Ordered by level DESC
     assert_eq!(r["results"][0]["level"], 10);
+    assert_eq!(r["results"][0]["display_level"], 11);
     assert_eq!(r["results"][1]["level"], 3);
+    assert_eq!(r["results"][1]["display_level"], 4);
 }
 
 #[test]

@@ -13,7 +13,7 @@ Follow the [initialize skill](../initialize/SKILL.md) to ensure the CLI is insta
 
 The CLI generates `id` (UUID) and timestamps (`created_at`, `updated_at`) automatically.
 
-**URL Percent-Encoding:** All string values in `--data` JSON are automatically URL percent-decoded. Use `python3 tools/url_encode.py "<text>"` to encode values containing quotes, spaces, or shell-problematic characters (e.g., `Ado%27s` → `Ado's`, `%20` → space). Plain text without `%` works unchanged. Keys and non-string values (numbers, booleans) are not decoded.
+**URL Percent-Encoding:** All string values in `--data` JSON are automatically URL percent-decoded. To encode values containing quotes, spaces, or shell-problematic characters, use inline Python: `python3 -c "from urllib.parse import quote; print(quote('<text>', safe=''))"` (e.g., `Ado's` → `Ado%27s`, spaces → `%20`). Plain text without `%` works unchanged. Keys and non-string values (numbers, booleans) are not decoded.
 
 ### Artist
 ```bash

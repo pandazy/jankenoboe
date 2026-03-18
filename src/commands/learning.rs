@@ -36,6 +36,7 @@ pub fn cmd_learning_due(
         "learning_due": {
             "query": format!(
                 "SELECT l.id, l.song_id, s.name as song_name, l.level, \
+                 (l.level + 1) as display_level, \
                  COALESCE(json_extract(l.level_up_path, '$[' || l.level || ']'), 0) as wait_days \
                  FROM learning l \
                  JOIN song s ON l.song_id = s.id \
@@ -43,7 +44,7 @@ pub fn cmd_learning_due(
                  ORDER BY l.level DESC \
                  LIMIT @limit"
             ),
-            "returns": ["id", "song_id", "song_name", "level", "wait_days"],
+            "returns": ["id", "song_id", "song_name", "level", "display_level", "wait_days"],
             "args": {
                 "offset": {"type": "integer"},
                 "limit": {"type": "integer"}
@@ -266,16 +267,12 @@ pub fn cmd_learning_song_review(
             "query": "SELECT name FROM artist WHERE id=@artist_id",
             "returns": ["name"]
         },
-        "get_show_info": {
-            "query": "SELECT rs.show_id, rs.media_url, sh.name as show_name \
-                      FROM rel_show_song rs \
-                      JOIN show sh ON rs.show_id = sh.id \
-                      WHERE rs.song_id=@song_id",
-            "returns": ["show_id", "media_url", "show_name"]
-        },
-        "get_play_history_urls": {
-            "query": "SELECT media_url FROM play_history WHERE song_id=@song_id AND media_url != '' AND status=0",
-            "returns": ["media_url"]
+        "get_show_media": {
+            "query": "SELECT ph.show_id, sh.name as show_name, COALESCE(sh.vintage, '') as vintage, ph.media_url \
+                      FROM play_history ph \
+                      JOIN show sh ON ph.show_id = sh.id \
+                      WHERE ph.song_id=@song_id AND ph.status=0",
+            "returns": ["show_id", "show_name", "vintage", "media_url"]
         }
     });
 
@@ -314,44 +311,37 @@ pub fn cmd_learning_song_review(
             .unwrap_or("Unknown")
             .to_string();
 
-        // Get show names and media URLs from rel_show_song
+        // Get shows and media URLs from play_history, grouped by show
         let song_params = json!({"song_id": song_id});
-        let show_result =
-            jankensqlhub::query_run_sqlite(conn, &queries, "get_show_info", &song_params)
+        let show_media_result =
+            jankensqlhub::query_run_sqlite(conn, &queries, "get_show_media", &song_params)
                 .map_err(AppError::from)?;
 
-        let mut show_names: Vec<String> = Vec::new();
-        let mut show_ids: Vec<String> = Vec::new();
-        let mut media_urls: Vec<String> = Vec::new();
+        let mut shows: Vec<ShowMedia> = Vec::new();
 
-        for show_row in &show_result.data {
-            let show_name = show_row["show_name"].as_str().unwrap_or("").to_string();
-            let show_id_val = show_row["show_id"].as_str().unwrap_or("").to_string();
-            if !show_name.is_empty() && !show_names.contains(&show_name) {
-                show_names.push(show_name);
-            }
-            if !show_id_val.is_empty() && !show_ids.contains(&show_id_val) {
-                show_ids.push(show_id_val);
-            }
-            if let Some(url) = show_row["media_url"].as_str()
-                && !url.is_empty()
-                && !media_urls.contains(&url.to_string())
-            {
-                media_urls.push(url.to_string());
-            }
-        }
+        for ph_row in &show_media_result.data {
+            let show_id_val = ph_row["show_id"].as_str().unwrap_or("").to_string();
+            let show_name_val = ph_row["show_name"].as_str().unwrap_or("").to_string();
+            let vintage_val = ph_row["vintage"].as_str().unwrap_or("").to_string();
+            let media_url = ph_row["media_url"].as_str().unwrap_or("").to_string();
 
-        // Get media URLs from play_history
-        let ph_result =
-            jankensqlhub::query_run_sqlite(conn, &queries, "get_play_history_urls", &song_params)
-                .map_err(AppError::from)?;
-
-        for ph_row in &ph_result.data {
-            if let Some(url) = ph_row["media_url"].as_str()
-                && !url.is_empty()
-                && !media_urls.contains(&url.to_string())
-            {
-                media_urls.push(url.to_string());
+            // Find or create the ShowMedia entry for this show
+            let show_entry = shows.iter_mut().find(|s| s.show_id == show_id_val);
+            if let Some(entry) = show_entry {
+                if !media_url.is_empty() && !entry.media_urls.contains(&media_url) {
+                    entry.media_urls.push(media_url);
+                }
+            } else if !show_id_val.is_empty() {
+                let mut media_urls = Vec::new();
+                if !media_url.is_empty() {
+                    media_urls.push(media_url);
+                }
+                shows.push(ShowMedia {
+                    show_id: show_id_val,
+                    show_name: show_name_val,
+                    vintage: vintage_val,
+                    media_urls,
+                });
             }
         }
 
@@ -365,9 +355,7 @@ pub fn cmd_learning_song_review(
             level,
             wait_days,
             artist_name,
-            show_names,
-            show_ids,
-            media_urls,
+            shows,
         });
     }
 
@@ -633,14 +621,15 @@ pub fn cmd_learning_by_song_ids(
 
     let query_json = json!({
         "learning_by_songs": {
-            "query": "SELECT l.id, l.song_id, s.name as song_name, l.level, l.graduated, \
+            "query": "SELECT l.id, l.song_id, s.name as song_name, l.level, \
+                      (l.level + 1) as display_level, l.graduated, \
                       l.last_level_up_at, \
                       json_extract(l.level_up_path, '$[' || l.level || ']') as wait_days \
                       FROM learning l \
                       JOIN song s ON l.song_id = s.id \
                       WHERE l.song_id IN :[song_ids] \
                       ORDER BY l.level DESC",
-            "returns": ["id", "song_id", "song_name", "level", "graduated", "last_level_up_at", "wait_days"],
+            "returns": ["id", "song_id", "song_name", "level", "display_level", "graduated", "last_level_up_at", "wait_days"],
             "args": {
                 "song_ids": {"itemtype": "string"}
             }
@@ -745,22 +734,27 @@ fn build_review_html(
     let songs_data: Vec<Value> = songs
         .iter()
         .map(|s| {
-            let shows_joined = s
-                .show_names()
+            // Build shows array with grouped media_urls per show
+            let shows_json: Vec<Value> = s
+                .shows()
                 .iter()
-                .map(|n| escape_html(n))
-                .collect::<Vec<_>>()
-                .join(" | ");
-            let media_urls: Vec<Value> = s
-                .media_urls()
-                .iter()
-                .map(|url| {
-                    let ext = extract_url_extension(url);
-                    json!({"url": escape_html(url), "ext": ext})
+                .map(|show| {
+                    let media_urls: Vec<Value> = show
+                        .media_urls
+                        .iter()
+                        .map(|url| {
+                            let ext = extract_url_extension(url);
+                            json!({"url": escape_html(url), "ext": ext})
+                        })
+                        .collect();
+                    json!({
+                        "showId": escape_html(&show.show_id),
+                        "showName": escape_html(&show.show_name),
+                        "vintage": escape_html(&show.vintage),
+                        "mediaUrls": media_urls
+                    })
                 })
                 .collect();
-            let show_ids_escaped: Vec<String> =
-                s.show_ids().iter().map(|id| escape_html(id)).collect();
             json!({
                 "learningId": escape_html(s.learning_id()),
                 "songId": escape_html(s.song_id()),
@@ -768,9 +762,7 @@ fn build_review_html(
                 "artist": escape_html(s.artist_name()),
                 "level": s.level() + 1,
                 "waitDays": s.wait_days(),
-                "shows": shows_joined,
-                "showIds": show_ids_escaped,
-                "mediaUrls": media_urls
+                "shows": shows_json
             })
         })
         .collect();
@@ -783,6 +775,14 @@ fn build_review_html(
         .replace("{{SONGS_JSON}}", &songs_json_str)
 }
 
+/// A show with its grouped media URLs for the review report.
+struct ShowMedia {
+    show_id: String,
+    show_name: String,
+    vintage: String,
+    media_urls: Vec<String>,
+}
+
 /// Data fields for a song in the review report.
 struct EnrichedSong {
     learning_id: String,
@@ -791,9 +791,7 @@ struct EnrichedSong {
     level: i64,
     wait_days: i64,
     artist_name: String,
-    show_names: Vec<String>,
-    show_ids: Vec<String>,
-    media_urls: Vec<String>,
+    shows: Vec<ShowMedia>,
 }
 
 /// Trait for accessing song review data fields (enables testability).
@@ -804,9 +802,7 @@ trait SongReviewData {
     fn level(&self) -> i64;
     fn wait_days(&self) -> i64;
     fn artist_name(&self) -> &str;
-    fn show_names(&self) -> &[String];
-    fn show_ids(&self) -> &[String];
-    fn media_urls(&self) -> &[String];
+    fn shows(&self) -> &[ShowMedia];
 }
 
 impl SongReviewData for EnrichedSong {
@@ -828,14 +824,8 @@ impl SongReviewData for EnrichedSong {
     fn artist_name(&self) -> &str {
         &self.artist_name
     }
-    fn show_names(&self) -> &[String] {
-        &self.show_names
-    }
-    fn show_ids(&self) -> &[String] {
-        &self.show_ids
-    }
-    fn media_urls(&self) -> &[String] {
-        &self.media_urls
+    fn shows(&self) -> &[ShowMedia] {
+        &self.shows
     }
 }
 
@@ -929,9 +919,7 @@ mod tests {
         level: i64,
         wait_days: i64,
         artist: String,
-        shows: Vec<String>,
-        show_ids: Vec<String>,
-        urls: Vec<String>,
+        shows: Vec<ShowMedia>,
     }
 
     impl SongReviewData for TestSong {
@@ -953,14 +941,8 @@ mod tests {
         fn artist_name(&self) -> &str {
             &self.artist
         }
-        fn show_names(&self) -> &[String] {
+        fn shows(&self) -> &[ShowMedia] {
             &self.shows
-        }
-        fn show_ids(&self) -> &[String] {
-            &self.show_ids
-        }
-        fn media_urls(&self) -> &[String] {
-            &self.urls
         }
     }
 
@@ -983,9 +965,12 @@ mod tests {
             level: 5,
             wait_days: 3,
             artist: "Test Artist".into(),
-            shows: vec!["Show A".into()],
-            show_ids: vec!["show-id-1".into()],
-            urls: vec!["https://example.com/video.webm".into()],
+            shows: vec![ShowMedia {
+                show_id: "show-id-1".into(),
+                show_name: "Show A".into(),
+                vintage: "Winter 2024".into(),
+                media_urls: vec!["https://example.com/video.webm".into()],
+            }],
         }];
         let mut dist = std::collections::BTreeMap::new();
         dist.insert(5, 1);
@@ -1010,13 +995,11 @@ mod tests {
             wait_days: 1,
             artist: "Artist".into(),
             shows: vec![],
-            show_ids: vec![],
-            urls: vec![],
         }];
         let mut dist = std::collections::BTreeMap::new();
         dist.insert(0, 1);
         let html = build_review_html(&songs, &dist);
-        assert!(html.contains("\"mediaUrls\":[]"));
+        assert!(html.contains("\"shows\":[]"));
     }
 
     #[test]
@@ -1028,9 +1011,12 @@ mod tests {
             level: 0,
             wait_days: 1,
             artist: "O'Brien & Co".into(),
-            shows: vec!["Show <1>".into()],
-            show_ids: vec!["show-id-xss".into()],
-            urls: vec![],
+            shows: vec![ShowMedia {
+                show_id: "show-id-xss".into(),
+                show_name: "Show <1>".into(),
+                vintage: "".into(),
+                media_urls: vec![],
+            }],
         }];
         let mut dist = std::collections::BTreeMap::new();
         dist.insert(0, 1);
@@ -1038,5 +1024,44 @@ mod tests {
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains("O&#39;Brien &amp; Co"));
+    }
+
+    #[test]
+    fn test_build_review_html_multiple_shows_with_grouped_urls() {
+        let songs = vec![TestSong {
+            learning_id: "lid-4".into(),
+            song_id: "song-4".into(),
+            name: "Multi Show Song".into(),
+            level: 3,
+            wait_days: 1,
+            artist: "Artist".into(),
+            shows: vec![
+                ShowMedia {
+                    show_id: "show-1".into(),
+                    show_name: "Show Alpha".into(),
+                    vintage: "Spring 2023".into(),
+                    media_urls: vec![
+                        "https://example.com/a1.webm".into(),
+                        "https://example.com/a2.mp3".into(),
+                    ],
+                },
+                ShowMedia {
+                    show_id: "show-2".into(),
+                    show_name: "Show Beta".into(),
+                    vintage: "Fall 2022".into(),
+                    media_urls: vec!["https://example.com/b1.webm".into()],
+                },
+            ],
+        }];
+        let mut dist = std::collections::BTreeMap::new();
+        dist.insert(3, 1);
+        let html = build_review_html(&songs, &dist);
+        assert!(html.contains("Show Alpha"));
+        assert!(html.contains("Show Beta"));
+        assert!(html.contains("https://example.com/a1.webm"));
+        assert!(html.contains("https://example.com/a2.mp3"));
+        assert!(html.contains("https://example.com/b1.webm"));
+        assert!(html.contains("show-1"));
+        assert!(html.contains("show-2"));
     }
 }

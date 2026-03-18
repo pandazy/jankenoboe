@@ -23,6 +23,7 @@ h1 { color: #e94560; margin-bottom: 8px; font-size: 1.5em; }
 .song-card .media { margin-top: 6px; }
 .song-card .media a { color: #e94560; text-decoration: none; margin-right: 10px; font-size: 0.85em; }
 .song-card .media a:hover { text-decoration: underline; }
+.show-group { margin-top: 4px; padding-left: 8px; border-left: 2px solid #0f3460; margin-bottom: 4px; }
 .no-media { color: #666; font-size: 0.85em; }
 .ids-row { margin-top: 6px; font-size: 0.8em; color: #888; }
 .ids-row .id-label { color: #a0a0b0; }
@@ -64,17 +65,36 @@ function renderLevelDist() {
   document.getElementById('level-dist').innerHTML = html;
 }
 
-function renderMediaHtml(mediaUrls) {
-  if (!mediaUrls || mediaUrls.length === 0) {
-    return '<span class="no-media">No media URLs</span>';
+function renderShowsHtml(shows) {
+  if (!shows || shows.length === 0) {
+    return '<div class="shows"><span class="no-media">No show data</span></div>';
   }
   var parts = [];
-  for (var j = 0; j < mediaUrls.length; j++) {
-    var m = mediaUrls[j];
-    var label = m.ext ? 'Media ' + (j + 1) + ' (' + m.ext + ')' : 'Media ' + (j + 1);
-    parts.push('<a href="' + m.url + '" target="_blank" rel="noopener">' + label + '</a>');
+  for (var i = 0; i < shows.length; i++) {
+    var sh = shows[i];
+    var mediaHtml = '';
+    if (sh.mediaUrls && sh.mediaUrls.length > 0) {
+      var links = [];
+      for (var j = 0; j < sh.mediaUrls.length; j++) {
+        var m = sh.mediaUrls[j];
+        var label = m.ext ? 'Media ' + (j + 1) + ' (' + m.ext + ')' : 'Media ' + (j + 1);
+        links.push('<a href="' + m.url + '" target="_blank" rel="noopener">' + label + '</a>');
+      }
+      mediaHtml = links.join(' ');
+    } else {
+      mediaHtml = '<span class="no-media">No media</span>';
+    }
+    var vintageHtml = sh.vintage ? ' <span style="color:#a0a0b0;font-size:0.85em;">(' + sh.vintage + ')</span>' : '';
+    parts.push(
+      '<div class="show-group">' +
+        '<div class="shows">' + sh.showName + vintageHtml +
+          ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + sh.showId + '\')" title="Copy show ID">\u2398</button>' +
+        '</div>' +
+        '<div class="media">' + mediaHtml + '</div>' +
+      '</div>'
+    );
   }
-  return parts.join(' ');
+  return parts.join('');
 }
 
 function copyId(btn, text) {
@@ -95,12 +115,6 @@ function renderIdsRow(s) {
     parts.push('<span class="id-label">Song:</span> ' + s.songId +
       ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + s.songId + '\')" title="Copy song ID">\u2398</button>');
   }
-  if (s.showIds && s.showIds.length > 0) {
-    for (var k = 0; k < s.showIds.length; k++) {
-      parts.push('<span class="id-label">Show:</span> ' + s.showIds[k] +
-        ' <button class="copy-btn" onclick="event.stopPropagation(); copyId(this, \'' + s.showIds[k] + '\')" title="Copy show ID">\u2398</button>');
-    }
-  }
   if (parts.length === 0) return '';
   return '<div class="ids-row">' + parts.join(' &nbsp;|&nbsp; ') + '</div>';
 }
@@ -115,8 +129,7 @@ function render() {
     html += '<div class="song-card" data-idx="' + i + '">' +
       '<div class="song-name">' + (i+1) + '. ' + s.name + '</div>' +
       '<div class="meta">Artist: ' + s.artist + ' &nbsp;|&nbsp; Lv.' + s.level + ' &nbsp;|&nbsp; Wait: ' + s.waitDays + ' days</div>' +
-      '<div class="shows">Shows: ' + (s.shows || 'N/A') + '</div>' +
-      '<div class="media">' + renderMediaHtml(s.mediaUrls) + '</div>' +
+      renderShowsHtml(s.shows) +
       renderIdsRow(s) +
       '</div>';
   }
